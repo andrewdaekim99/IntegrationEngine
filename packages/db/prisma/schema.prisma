@@ -1,0 +1,12 @@
+// Prisma schema for integr8.
+// Phase 0: empty — only generator + datasource so the client can be generated.
+// Phase 1 adds IngestedEvent, SyncRun, DeadLetterItem, MappingConfig.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}

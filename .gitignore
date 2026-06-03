@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Prisma generated client
+packages/db/generated/
+**/.prisma/
+
+# Env (never commit secrets)
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test/coverage
+coverage/
+.vitest-cache/
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Turbo / cache
+.turbo/
