@@ -1,4 +1,5 @@
 import Fastify, { type FastifyRequest } from 'fastify';
+import { z } from 'zod';
 import {
   loadEnv,
   createLogger,
@@ -7,7 +8,7 @@ import {
   SHOPIFY_ORDERS_CREATE_TOPIC,
   type SyncJobPayload,
 } from '@integr8/core';
-import { PrismaClient } from '@integr8/db';
+import { PrismaClient, type Prisma } from '@integr8/db';
 import { BullMQQueue } from '@integr8/queue';
 import { ShopifyOrderConnector } from '@integr8/connectors';
 
@@ -35,6 +36,108 @@ app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body,
 });
 
 app.get('/healthz', async () => ({ ok: true, service: 'api' }));
+
+// ---------------------------------------------------------------------------
+// Dashboard REST endpoints. Server-side (Next.js) reads them; everything else
+// is read-only so no auth for the Phase 5 demo.
+// ---------------------------------------------------------------------------
+
+const EventStatusEnum = z.enum([
+  'RECEIVED',
+  'PROCESSING',
+  'SUCCEEDED',
+  'DEDUPED',
+  'RETRYING',
+  'DEAD_LETTERED',
+]);
+
+const eventsQuerySchema = z.object({
+  q: z.string().min(1).optional(),
+  status: EventStatusEnum.optional(),
+  limit: z.coerce.number().int().positive().max(200).default(50),
+  offset: z.coerce.number().int().nonnegative().default(0),
+});
+
+app.get('/events', async (req, reply) => {
+  const parsed = eventsQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    return reply.code(400).send({ error: 'invalid query', issues: parsed.error.issues });
+  }
+  const { q, status, limit, offset } = parsed.data;
+
+  const where: Prisma.IngestedEventWhereInput = {};
+  if (q) where.externalId = { contains: q };
+  if (status) where.status = status;
+
+  const [events, total] = await Promise.all([
+    prisma.ingestedEvent.findMany({
+      where,
+      orderBy: { receivedAt: 'desc' },
+      take: limit,
+      skip: offset,
+      select: {
+        id: true,
+        source: true,
+        externalId: true,
+        topic: true,
+        status: true,
+        receivedAt: true,
+        processedAt: true,
+      },
+    }),
+    prisma.ingestedEvent.count({ where }),
+  ]);
+
+  return reply.send({ events, total, limit, offset });
+});
+
+app.get('/events/:id', async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const event = await prisma.ingestedEvent.findUnique({
+    where: { id },
+    include: {
+      syncRuns: { orderBy: { startedAt: 'asc' } },
+      deadLetterItem: true,
+    },
+  });
+  if (!event) return reply.code(404).send({ error: 'event not found' });
+  return reply.send({ event });
+});
+
+const dlqQuerySchema = z.object({
+  resolved: z.enum(['true', 'false', 'all']).default('false'),
+  limit: z.coerce.number().int().positive().max(200).default(50),
+  offset: z.coerce.number().int().nonnegative().default(0),
+});
+
+app.get('/dlq', async (req, reply) => {
+  const parsed = dlqQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    return reply.code(400).send({ error: 'invalid query', issues: parsed.error.issues });
+  }
+  const { resolved, limit, offset } = parsed.data;
+
+  const where: Prisma.DeadLetterItemWhereInput = {};
+  if (resolved === 'true') where.resolvedAt = { not: null };
+  if (resolved === 'false') where.resolvedAt = null;
+
+  const [items, total] = await Promise.all([
+    prisma.deadLetterItem.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      skip: offset,
+      include: {
+        event: {
+          select: { id: true, source: true, externalId: true, topic: true, status: true },
+        },
+      },
+    }),
+    prisma.deadLetterItem.count({ where }),
+  ]);
+
+  return reply.send({ items, total, limit, offset });
+});
 
 /**
  * Manual DLQ replay. Looks up the DeadLetterItem by id, re-enqueues the

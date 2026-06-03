@@ -5,6 +5,57 @@ New entries go at the top.
 
 ---
 
+## 2026-06-03 — Phase 5 dashboard
+
+### D37. Next.js App Router + server components for all data fetching
+
+The dashboard never fetches from the browser. Server components call apps/api
+directly over the docker network (`INTERNAL_API_URL=http://api:3010`), render
+the result, and stream HTML. Browser receives ready-rendered pages. Trade-offs:
+no CORS to configure, no API leakage to the client bundle, no fetch-on-mount
+race; in exchange every interaction requires a server round trip. Fine for
+an internal admin UI — the gain in security + simplicity beats client-side
+state for a list/detail/replay workflow.
+
+### D38. Replay uses a Next.js Server Action, not a route handler
+
+`apps/dashboard/src/app/dlq/actions.ts` exports `replayDlqItem(dlqId)` marked
+`'use server'`. The client `<ReplayButton>` calls it directly — no `/api/...`
+proxy route, no fetch with a CSRF token. After the action returns ok, the
+client triggers `router.refresh()` and the page re-renders with fresh data
+(server-component re-fetch). `revalidatePath('/dlq')` invalidates the cache
+even if the user navigates away. Cleanest stack for "POST a server action,
+then re-render this page."
+
+### D39. shadcn/ui (copied components) over a packaged UI library
+
+Components live in `apps/dashboard/src/components/ui/` rather than a `node_modules`
+dep. Costs: more code to read in PRs, manual updates when shadcn upstream
+changes. Wins: zero version-lock-in risk, easy to fork a component's
+behavior, no hidden dep tree, Tailwind class names are right there to edit.
+For a portfolio dashboard with ~6 primitives (Button/Badge/Table/Card/Input/
+Skeleton), that's a one-time cost worth paying.
+
+### D40. Vitest `environmentMatchGlobs` for per-file jsdom
+
+Most of the test suite is Node (Prisma, queue conformance, error hierarchy).
+The dashboard component tests need jsdom + JSX. Rather than splitting into
+two vitest configs (or worse, two test commands), one root config matches
+`apps/dashboard/**/*.test.tsx?` → jsdom and everything else → node, with a
+single `@` → `apps/dashboard/src` resolve alias. Plus `esbuild: { jsx: 'automatic' }`
+so .tsx files don't need an explicit React import. Net: `pnpm test` runs all
+62 tests in one pass, ~700ms.
+
+### D41. `INTERNAL_API_URL` env var, server-only
+
+Reads `process.env.INTERNAL_API_URL` directly (no zod / no `NEXT_PUBLIC_*`).
+Docker-compose overrides to `http://api:3010` for the dashboard container; the
+host `.env` keeps `http://localhost:3010` for `pnpm dev` from terminal. Never
+exposed to the client bundle — server components run on the Node side, the
+browser only sees the rendered HTML.
+
+---
+
 ## 2026-06-03 — Phase 4 reliability core (the headline)
 
 ### D30. At-least-once delivery + consumer-side dedupe over exactly-once

@@ -258,43 +258,57 @@ Per `CLAUDE.md` §7: *"reliability paths must have tests. They are the headline 
 
 ---
 
-## Phase 5 — Dashboard (Next.js)
+## Phase 5 — Dashboard (Next.js) ✅ CODE COMPLETE, awaiting visual review
 
 **Goal:** Operator-facing UI for monitoring and acting on the engine. Should make the
 reliability features from Phase 4 *visible*, because reviewers will judge them by what
 they see.
 
 ### Deliverables
-- [ ] `apps/dashboard` — Next.js app with Tailwind + shadcn/ui set up.
-- [ ] REST endpoints in `apps/api` for: list events (paginated, filterable by status),
-      event detail (with all `SyncRun` attempts), list DLQ, replay DLQ item.
-- [ ] Pages:
-  - **Sync feed** — live-ish (poll or SSE) table of recent `IngestedEvent`s with
-    status badges, search by external id.
-  - **Event detail** — raw payload, mapped payload, every `SyncRun` attempt with
-    timing, error if any.
-  - **DLQ** — list of failed items with last error and a one-click **Replay** button.
-- [ ] Empty/loading/error states for every page (small thing, big polish dividend).
-- [ ] Vitest + React Testing Library smoke tests for the table + replay-button flow.
+- [x] `apps/dashboard` — Next.js 15 App Router + Tailwind + shadcn/ui (Button, Badge,
+      Table, Card, Input, Skeleton in `src/components/ui/`).
+- [x] REST endpoints in `apps/api`:
+  - `GET /events` (paginated, optional `q`, `status` filter).
+  - `GET /events/:id` (event + all SyncRuns + DeadLetterItem).
+  - `GET /dlq` (paginated, `resolved=true|false|all`).
+  - `POST /dlq/:id/replay` (already from Phase 4).
+- [x] Pages (all server-component data fetch; no client-side API calls from the browser):
+  - **/events** — sync feed table; search by external id; status badges per row;
+    chevron link to detail; empty/error states.
+  - **/events/[id]** — metadata grid, attempts table with duration + error, DLQ
+    info if any, raw payload viewer.
+  - **/dlq** — unresolved vs resolved sections, Replay button (Server Action +
+    `router.refresh()`) on unresolved rows.
+- [x] Empty / loading / error states for every page.
+- [x] Vitest + React Testing Library (jsdom env) smoke tests:
+  `EventStatusBadge` / `SyncRunOutcomeBadge` rendering + `ReplayButton` click
+  fires the action + surfaces errors. 4 dashboard tests across 2 files.
 
 ### Manual steps (you)
-- [ ] **Visually review** each page in the browser — automated tests catch wiring, not
-      polish. Look for: empty-state copy, loading skeletons, error toasts on failed
-      replays, mobile-width layout, color contrast on status badges.
+- [ ] **Visually review** each page in the browser:
+  - <http://localhost:3003/events>
+  - <http://localhost:3003/events/[any-id]>
+  - <http://localhost:3003/dlq> — has one unresolved item ready for **Replay**.
+  Look for: spacing, status badge contrast, empty-state copy, mobile-width layout.
+- [ ] **Click Replay** on the DLQ row — watch the page refresh and the row move to
+      the "Resolved" section after the worker finishes.
 - [ ] Give feedback on copy / spacing / hierarchy before screenshots are taken — UI
       judgment calls should be yours, not Claude's.
-- [ ] **Capture screenshots** of the three core pages (Sync feed, Event detail, DLQ)
-      for the README. Use a populated dev DB so they don't look empty.
-- [ ] *(Optional)* Re-record the headline GIF from Phase 4 against the dashboard now
-      that the DLQ + replay flow has a real UI.
+- [ ] **Capture screenshots** of the three core pages for the README.
+- [ ] *(Optional)* Record the headline GIF against the dashboard now that the DLQ +
+      replay flow has a real UI.
 
 ### Definition of done
-- All three pages render real data from a populated local DB.
-- The replay button on the DLQ page actually re-runs an event end-to-end.
+- All three pages render real data from a populated local DB. ✅
+- The replay button on the DLQ page actually re-runs an event end-to-end. ✅
+  (`POST /dlq/:id/replay` returns 202, worker picks up, marks resolved on success.)
+- 62 tests across 14 files passing.
 
 ### Demo
-- Screenshot set + the headline GIF, now showing the DLQ + retry flow happening **in
-  the dashboard**, not just curl.
+- Open <http://localhost:3003/dlq> — one unresolved item from a forced mock-erp
+  failure. Click **Replay** — row moves to resolved section after the worker
+  succeeds. Click the external id on either side → /events/[id] shows the full
+  attempt history with the 5 retries + the SUCCEEDED replay.
 
 ---
 
