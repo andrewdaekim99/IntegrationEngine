@@ -17,6 +17,9 @@ const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   STRIPE_TEST_KEY: z.string().optional(),
 
+  /** Worker-only: the HTTP base URL for the Mock ERP destination connector. */
+  MOCK_ERP_URL: z.string().url().default('http://mock-erp:3002'),
+
   AWS_REGION: z.string().optional(),
   SQS_QUEUE_URL: z.string().optional(),
 });

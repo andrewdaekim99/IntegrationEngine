@@ -5,6 +5,58 @@ New entries go at the top.
 
 ---
 
+## 2026-06-03 — Phase 3 happy-path end-to-end
+
+### D24. Custom JSON content-type parser preserves the raw body
+
+Shopify's HMAC is over the exact bytes Shopify sent. If Fastify parses
+`req.body` to an object and we re-stringify for verification, the recomputed
+HMAC drifts (key order, whitespace, number formatting). The API removes the
+default JSON parser and registers one that passes the raw string through as
+`req.body`. The route then calls the connector's `parsePayload` to re-parse.
+Affects only POST/PUT routes; `/healthz` and future GETs are unaffected.
+
+### D25. Enqueue only the eventId, not the full payload
+
+`SyncJobPayload = { eventId: string }` — the worker loads the `IngestedEvent`
+row to read the raw body. Keeps Redis small, makes the DB the source of truth
+(if the queue is wiped, the DB still has every event), and means Phase 4's
+replay-from-DLQ is "re-enqueue the same eventId" rather than "reconstruct the
+payload from the DLQ record."
+
+### D26. Idempotency key sent to Mock ERP = `event-{eventId}`
+
+Deterministic from the eventId, not the queue's JobId, so a Phase 4 retry of
+the same event uses the same key — Mock ERP's unique constraint dedupes it
+naturally. If we'd used the JobId, every retry would create a fresh row.
+
+### D27. Phase 3 ack-everything (failures recorded but not retried)
+
+Per ROADMAP §Phase 3: "no reliability features yet." On every outcome the
+worker calls `queue.ack(job.id)`. Failures are still observable — they appear
+as `SyncRun` rows with `outcome = RETRYABLE_FAILURE` / `TERMINAL_FAILURE` and
+the `IngestedEvent` is marked `DEAD_LETTERED`. Phase 4 replaces this with
+`queue.nack(retryAfterMs: backoff)` and `queue.moveToDLQ(jobId, error)`.
+
+### D28. Hard-coded Shopify → MockErp mapping lives in apps/worker
+
+`mapShopifyOrderToMockErp` is in `apps/worker/src/mapping.ts`. Phase 6 will
+replace the call site with a lookup of the active `MappingConfig` row, but
+the type signature (`ShopifyOrder` → `MockErpOrderInput`) is the contract the
+AI-proposed mapping must honor — so this function doubles as the schema the
+Mapping Studio is allowed to produce.
+
+### D29. Integration test runs against the live docker stack, skips when down
+
+Vitest health-checks the API + Postgres at import time. If reachable, the
+suite runs; otherwise `describe.skip`. Keeps `pnpm test` green on a cold
+machine without docker-compose up, and gives a single command (`pnpm test`)
+that's locally meaningful when the stack is up. Trade-off vs an in-process
+test rig: more setup-y, but it exercises the real production path including
+the Fastify wiring, the BullMQ adapter, and the real Mock ERP DB write.
+
+---
+
 ## 2026-06-03 — Phase 2 concrete adapters
 
 ### D17. BullMQ bridge for explicit ack / nack / moveToDLQ

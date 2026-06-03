@@ -18,7 +18,8 @@
     "typecheck": "pnpm -r run typecheck",
     "db:migrate": "dotenv -e .env -- pnpm --filter @integr8/db exec prisma migrate dev",
     "db:generate": "dotenv -e .env -- pnpm --filter @integr8/db exec prisma generate",
-    "db:studio": "dotenv -e .env -- pnpm --filter @integr8/db exec prisma studio"
+    "db:studio": "dotenv -e .env -- pnpm --filter @integr8/db exec prisma studio",
+    "dev:send-test-webhook": "dotenv -e .env -- pnpm --filter @integr8/api run send-test-webhook"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

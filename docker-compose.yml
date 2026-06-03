@@ -59,11 +59,14 @@ services:
     environment:
       DATABASE_URL: postgresql://integr8:integr8@postgres:5432/integr8?schema=public
       REDIS_URL: redis://redis:6379
+      MOCK_ERP_URL: http://mock-erp:3002
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mock-erp:
+        condition: service_started
 
   mock-erp:
     build:

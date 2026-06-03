@@ -9,8 +9,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@integr8/connectors": "workspace:*",
     "@integr8/core": "workspace:*",
-    "@integr8/db": "workspace:*"
+    "@integr8/db": "workspace:*",
+    "@integr8/queue": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.19.2"

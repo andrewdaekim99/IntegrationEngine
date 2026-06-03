@@ -38,12 +38,18 @@ importers:
 
   apps/api:
     dependencies:
+      '@integr8/connectors':
+        specifier: workspace:*
+        version: link:../../packages/connectors
       '@integr8/core':
         specifier: workspace:*
         version: link:../../packages/core
       '@integr8/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@integr8/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
       fastify:
         specifier: ^5.2.1
         version: 5.8.5
@@ -98,12 +104,18 @@ importers:
 
   apps/worker:
     dependencies:
+      '@integr8/connectors':
+        specifier: workspace:*
+        version: link:../../packages/connectors
       '@integr8/core':
         specifier: workspace:*
         version: link:../../packages/core
       '@integr8/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@integr8/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
     devDependencies:
       tsx:
         specifier: ^4.19.2

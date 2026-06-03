@@ -148,50 +148,53 @@ work with one real provider each before wiring the engine together.
 
 ---
 
-## Phase 3 — Happy-path end-to-end
+## Phase 3 — Happy-path end-to-end 🚧 CODE COMPLETE, AWAITING REAL SHOPIFY WEBHOOK
 
 **Goal:** A real Shopify order webhook lands in the API and a row appears in Mock ERP.
 No reliability features yet (no retry, no DLQ) — just prove the pipe is connected.
 
 ### Deliverables
-- [ ] `apps/api` — Fastify server with `POST /webhooks/shopify/orders`:
-  1. verify HMAC,
-  2. persist raw `IngestedEvent` (status = `received`),
-  3. enqueue a job referencing the event id,
-  4. return 2xx **only after** persistence + enqueue succeed.
-- [ ] `apps/worker` — standalone Node process that consumes the queue:
+- [x] `apps/api` — Fastify server with `POST /webhooks/shopify/orders`:
+  1. verify HMAC (custom JSON parser keeps raw body),
+  2. persist raw `IngestedEvent` (status = `RECEIVED`); composite-unique key handles dedupe,
+  3. enqueue a job referencing the event id (`SyncJobPayload = { eventId }`),
+  4. returns 200 + eventId only after persistence + enqueue succeed.
+- [x] `apps/worker` — standalone Node process that consumes the queue:
   1. load the event from DB,
-  2. apply a hard-coded mapping (Shopify order → Mock ERP order shape),
-  3. call the Mock ERP destination connector,
+  2. hard-coded mapping (Shopify order → Mock ERP order shape) in `mapping.ts`,
+  3. call the Mock ERP destination connector with `event-{eventId}` idempotency key,
   4. write a `SyncRun` row with the outcome,
-  5. update event status.
-- [ ] Structured pino logs at every step, tagged with `eventId` and `runId`.
-- [ ] One integration test (against the in-memory queue fake + a real Postgres in CI/
-      docker) covering the full path: webhook in → SyncRun success → Mock ERP row.
-- [ ] A scripted dev seed: a `pnpm dev:send-test-webhook` task posts a signed sample
-      Shopify payload to the local API for manual exercising.
+  5. update event status to `SUCCEEDED` / `DEAD_LETTERED`.
+- [x] Structured pino logs at every step, tagged with `eventId`, `jobId`, `runId`,
+      `attempt`. Same `eventId` traces cleanly across api + worker logs.
+- [x] Integration test in `apps/api/src/__tests__/integration-e2e.test.ts` against the
+      live docker stack: signs + posts a webhook, polls Postgres for SUCCEEDED, asserts
+      the `IngestedEvent → SyncRun → MockErpOrder` chain. Skips when stack is down.
+- [x] `pnpm dev:send-test-webhook` script signs the bundled fixture and posts to local API.
 
 ### Manual steps (you)
-- [ ] Create a **Shopify Partners account** (free) at partners.shopify.com.
-- [ ] Create a **development store** under that Partners account (free, no card).
-- [ ] Add a sample product and a test customer to the dev store so orders can be placed.
-- [ ] Install a **local tunnel** (`ngrok`, `cloudflared`, or Shopify's built-in tunnel)
-      and start it pointing at the local API port (e.g. `ngrok http 3000`).
+- [x] Create a **Shopify Partners account** (free) at partners.shopify.com.
+- [x] Create a **development store** under that Partners account (free, no card).
+- [x] Add a sample product and a test customer to the dev store so orders can be placed.
+- [x] Install **ngrok** + sign up + add auth token.
+- [ ] Start ngrok pointing at the local API: `ngrok http 3010`.
 - [ ] In the dev store admin, register a webhook for the **`orders/create`** topic
-      pointing at `<tunnel-url>/webhooks/shopify/orders`.
-- [ ] Copy the **webhook signing secret** Shopify gives you into `.env` as
-      `SHOPIFY_WEBHOOK_SECRET`.
+      pointing at `<ngrok-https-url>/webhooks/shopify/orders` (JSON format).
+- [ ] Copy the **webhook signing secret** Shopify shows you into `.env` as
+      `SHOPIFY_WEBHOOK_SECRET`; `docker compose restart api` to pick it up.
 - [ ] Place a test order in the dev store to fire the first real webhook.
 - [ ] *(Recommended)* Save 1–2 real webhook payloads as fixtures in
-      `packages/connectors/shopify/__fixtures__/` so future tests don't need the tunnel.
+      `packages/connectors/src/shopify/__fixtures__/` so future tests don't need the tunnel.
 
 ### Definition of done
-- End-to-end test green.
-- Logs from a real local run clearly show the event id flowing through API → queue → worker → ERP.
+- End-to-end test green. ✅ (46/46 tests passing including the integration test)
+- Logs from a real local run clearly show the event id flowing through API → queue → worker → ERP. ✅
+  - Same `eventId` appears in `api-1` "shopify webhook ingested + enqueued" and
+    `worker-1` "delivery succeeded" / "event completed".
 
 ### Demo
-- Terminal split: `docker-compose logs -f api worker`, then run the dev script; an order
-  row appears in Mock ERP within ~1s.
+- Terminal: `docker compose logs -f api worker`, then `pnpm dev:send-test-webhook` —
+  webhook in → worker logs `outcome: SUCCEEDED` → row appears in `mock_erp_order` table.
 
 ---
 

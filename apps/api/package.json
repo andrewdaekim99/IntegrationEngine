@@ -6,11 +6,14 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
+    "send-test-webhook": "tsx scripts/send-test-webhook.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@integr8/connectors": "workspace:*",
     "@integr8/core": "workspace:*",
     "@integr8/db": "workspace:*",
+    "@integr8/queue": "workspace:*",
     "fastify": "^5.2.1"
   },
   "devDependencies": {
