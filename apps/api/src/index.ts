@@ -36,6 +36,45 @@ app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body,
 
 app.get('/healthz', async () => ({ ok: true, service: 'api' }));
 
+/**
+ * Manual DLQ replay. Looks up the DeadLetterItem by id, re-enqueues the
+ * original eventId so the worker can have another go. The DLQ row stays
+ * `unresolved` until the worker's dispatch logic marks it resolved on a
+ * successful SyncRun. Returns 202 + the new jobId.
+ *
+ *   curl -X POST http://localhost:3010/dlq/<dlq-id>/replay
+ */
+app.post('/dlq/:id/replay', async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const log = req.log.child({ route: 'dlq-replay', dlqId: id });
+
+  const item = await prisma.deadLetterItem.findUnique({ where: { id } });
+  if (!item) {
+    return reply.code(404).send({ error: 'DLQ item not found' });
+  }
+  if (item.resolvedAt) {
+    return reply.code(409).send({
+      error: 'DLQ item already resolved',
+      resolvedAt: item.resolvedAt,
+    });
+  }
+
+  await prisma.ingestedEvent.update({
+    where: { id: item.eventId },
+    data: { status: 'RECEIVED', processedAt: null },
+  });
+
+  const jobId = await queue.enqueue({ eventId: item.eventId });
+  log.info({ eventId: item.eventId, jobId }, 'DLQ replay enqueued');
+
+  return reply.code(202).send({
+    status: 'replay-enqueued',
+    jobId,
+    eventId: item.eventId,
+    dlqId: item.id,
+  });
+});
+
 app.post('/webhooks/shopify/orders', async (req, reply) => {
   const rawBody = req.body;
   if (typeof rawBody !== 'string' || rawBody.length === 0) {

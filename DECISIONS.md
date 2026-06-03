@@ -5,6 +5,72 @@ New entries go at the top.
 
 ---
 
+## 2026-06-03 — Phase 4 reliability core (the headline)
+
+### D30. At-least-once delivery + consumer-side dedupe over exactly-once
+
+BullMQ (and SQS in Phase 8) are at-least-once: a worker crash mid-process means
+the job comes back. We pay that cost and *make processing idempotent at the
+consumer* instead of paying the much higher cost (and limited correctness) of
+exactly-once delivery. The dedupe check in `dispatch()` is one query —
+`syncRun.findFirst { eventId, outcome: SUCCEEDED }`. If any prior SUCCEEDED row
+exists, the new delivery writes a `DEDUPED` SyncRun, never touches the
+destination, and acks. Covers: queue redelivery after crash, accidental
+double-enqueue, and Shopify retrying webhook delivery faster than we ack.
+
+### D31. Exponential backoff with jitter; 5 attempts; cap at 30s
+
+`DEFAULT_RETRY_POLICY = { maxAttempts: 5, baseDelayMs: 1_000, maxDelayMs: 30_000, jitter: true }`.
+Delays before each retry: 1s, 2s, 4s, 8s (jitter adds up to +25%). Total
+worst-case wait ≈ 15s spread across 5 attempts. Jitter prevents thundering-herd
+reconnects when the upstream recovers. The schedule's hardcoded for now; Phase 6
+or Phase 9 could move it to `MappingConfig` if per-destination tuning matters.
+
+### D32. Postgres `DeadLetterItem` is the source of truth; queue DLQ is unused
+
+The dispatcher writes a row to `DeadLetterItem` and `ack`s the queue rather than
+calling `queue.moveToDLQ`. Reasons: (a) the dashboard reads from Postgres
+regardless, so two DLQ stores would drift; (b) replay needs Postgres state
+anyway (which event, how many attempts, last error); (c) the queue's DLQ is
+strictly there for the Phase 1 conformance contract. Keeps a single source of
+truth and a single replay path (`POST /dlq/:id/replay`).
+
+### D33. Replay re-enqueues, doesn't preemptively mark resolved
+
+`POST /dlq/:id/replay` resets the event status to `RECEIVED` and enqueues a
+fresh job with attempt=1 — but leaves the `DeadLetterItem` row open. The worker
+marks `resolvedAt` only after a successful `SyncRun`. If the replay fails again,
+the row is updated (same id, new lastError, new attempts) rather than creating
+a duplicate. Avoids the false-positive of "marked resolved but failed again."
+
+### D34. Failure routing lives in `dispatch()`, not `processEvent()`
+
+`processEvent()` updates `IngestedEvent.status` only on success. Failures
+return a typed outcome (`RETRYABLE_FAILURE` / `TERMINAL_FAILURE` / `NOT_FOUND`)
+and `dispatch()` decides: nack with backoff, write `DeadLetterItem`, etc.
+Concentrates all reliability decisions in one place that tests can drive
+directly without spinning up the queue or HTTP.
+
+### D35. `ControllableDestinationConnector` enables the headline test suite
+
+Test helper in `packages/connectors`: a destination whose deliver() outcomes
+are scripted in advance via `.on(() => ok(...))` / `.on(() => err(...))`. The
+6-test reliability suite (dedupe, retry-then-succeed, exhaust-to-DLQ, terminal,
+replay-resolves-DLQ, crash-still-dedupes) drives it against the real dispatcher
+and real Postgres without any network or sleeps. Same pattern any new
+destination adapter can use for its own tests.
+
+### D36. Tests clean up via `IngestedEvent` cascade delete, scoped by prefix
+
+`DeadLetterItem` and `SyncRun` both `onDelete: Cascade` on `eventId`, so the
+Phase 4 test `beforeEach` deletes only `IngestedEvent` rows whose `externalId`
+starts with `phase4-`. The cascade tears down the dependent rows; rows from
+the concurrently-running Phase 3 live-stack integration test (which uses a
+`Date.now()`-style externalId) are untouched. Surgical cleanup beats global
+`deleteMany()` for any DB-shared test suite.
+
+---
+
 ## 2026-06-03 — Phase 3 happy-path end-to-end
 
 ### D24. Custom JSON content-type parser preserves the raw body

@@ -7,7 +7,8 @@ import {
 import { PrismaClient } from '@integr8/db';
 import { BullMQQueue } from '@integr8/queue';
 import { MockErpDestinationConnector } from '@integr8/connectors';
-import { processEvent } from './process-event.js';
+import { dispatch } from './dispatch.js';
+import { DEFAULT_RETRY_POLICY } from './retry-policy.js';
 
 const env = loadEnv();
 const logger = createLogger(env, { app: 'worker' });
@@ -19,33 +20,25 @@ const queue = new BullMQQueue<SyncJobPayload>({
 const mockErp = new MockErpDestinationConnector({ baseUrl: env.MOCK_ERP_URL });
 
 const consumer = await queue.consume(async (job) => {
-  const log = logger.child({
-    jobId: job.id,
-    eventId: job.payload.eventId,
-    attempt: job.attempt,
-  });
-  log.info('event received');
-  try {
-    const result = await processEvent({
+  await dispatch(
+    {
       prisma,
-      mockErp,
-      eventId: job.payload.eventId,
-      attempt: job.attempt,
-      log,
-    });
-    log.info({ outcome: result.kind }, 'event completed');
-  } catch (err) {
-    log.error({ err }, 'unexpected error processing event');
-  }
-  // Phase 3: ack every outcome to prevent infinite redelivery loops.
-  // Phase 4 will reroute retryable failures via nack(retryAfterMs) and
-  // terminal failures via moveToDLQ.
-  await queue.ack(job.id);
+      queue,
+      destination: mockErp,
+      retryPolicy: DEFAULT_RETRY_POLICY,
+      logger,
+    },
+    job,
+  );
 });
 
 logger.info(
-  { queue: SYNC_QUEUE_NAME, mockErpUrl: env.MOCK_ERP_URL },
-  'worker started — consuming sync queue',
+  {
+    queue: SYNC_QUEUE_NAME,
+    mockErpUrl: env.MOCK_ERP_URL,
+    retryPolicy: DEFAULT_RETRY_POLICY,
+  },
+  'worker started — consuming sync queue with retry/DLQ enabled',
 );
 
 const shutdown = async (signal: string): Promise<void> => {

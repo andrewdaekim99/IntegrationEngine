@@ -10,8 +10,8 @@
   "scripts": {
     "dev": "pnpm -r --parallel run dev",
     "build": "pnpm -r run build",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "dotenv -e .env -- vitest run",
+    "test:watch": "dotenv -e .env -- vitest",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -19,7 +19,8 @@
     "db:migrate": "dotenv -e .env -- pnpm --filter @integr8/db exec prisma migrate dev",
     "db:generate": "dotenv -e .env -- pnpm --filter @integr8/db exec prisma generate",
     "db:studio": "dotenv -e .env -- pnpm --filter @integr8/db exec prisma studio",
-    "dev:send-test-webhook": "dotenv -e .env -- pnpm --filter @integr8/api run send-test-webhook"
+    "dev:send-test-webhook": "dotenv -e .env -- pnpm --filter @integr8/api run send-test-webhook",
+    "dev:capture-fixture": "dotenv -e .env -- pnpm --filter @integr8/api run capture-fixture"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

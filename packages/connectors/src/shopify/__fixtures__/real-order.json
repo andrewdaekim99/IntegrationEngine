@@ -1,0 +1,584 @@
+{
+  "id": 820982911946154500,
+  "name": "#9999",
+  "note": null,
+  "tags": "tag1, tag2",
+  "test": true,
+  "email": "jon@example.com",
+  "phone": null,
+  "token": "123456abcd",
+  "app_id": null,
+  "number": 234,
+  "company": null,
+  "refunds": [],
+  "returns": [],
+  "user_id": null,
+  "currency": "USD",
+  "customer": {
+    "id": 115310627314723950,
+    "note": null,
+    "email": "john@example.com",
+    "phone": null,
+    "state": "disabled",
+    "currency": "USD",
+    "last_name": "Smith",
+    "created_at": null,
+    "first_name": "John",
+    "tax_exempt": false,
+    "updated_at": null,
+    "tax_exemptions": [],
+    "verified_email": true,
+    "default_address": {
+      "id": 715243470612851200,
+      "zip": "K2H7A8",
+      "city": "Ottawa",
+      "name": "John Smith",
+      "phone": "123-123-1234",
+      "company": null,
+      "country": "Canada",
+      "default": true,
+      "address1": "123 Elm St.",
+      "address2": null,
+      "province": "Ontario",
+      "last_name": "Smith",
+      "first_name": "John",
+      "customer_id": 115310627314723950,
+      "country_code": "CA",
+      "country_name": "Canada",
+      "province_code": "ON"
+    },
+    "admin_graphql_api_id": "gid://shopify/Customer/115310627314723954",
+    "multipass_identifier": null
+  },
+  "closed_at": null,
+  "confirmed": false,
+  "device_id": null,
+  "po_number": null,
+  "reference": null,
+  "tax_lines": [],
+  "total_tax": "0.00",
+  "browser_ip": null,
+  "cart_token": null,
+  "created_at": "2026-06-03T19:14:08-04:00",
+  "line_items": [
+    {
+      "id": 866550311766439000,
+      "sku": "",
+      "name": "Gift Card",
+      "grams": 0,
+      "price": "10.00",
+      "title": "Gift Card",
+      "duties": [],
+      "vendor": null,
+      "taxable": true,
+      "quantity": 1,
+      "gift_card": false,
+      "price_set": {
+        "shop_money": {
+          "amount": "10.00",
+          "currency_code": "USD"
+        },
+        "presentment_money": {
+          "amount": "10.00",
+          "currency_code": "USD"
+        }
+      },
+      "tax_lines": [],
+      "product_id": 10216594080029,
+      "properties": [],
+      "variant_id": 51836483109149,
+      "variant_title": null,
+      "product_exists": true,
+      "total_discount": "0.00",
+      "current_quantity": 1,
+      "attributed_staffs": [
+        {
+          "id": "gid://shopify/StaffMember/902541635",
+          "quantity": 1
+        }
+      ],
+      "requires_shipping": true,
+      "fulfillment_status": null,
+      "total_discount_set": {
+        "shop_money": {
+          "amount": "0.00",
+          "currency_code": "USD"
+        },
+        "presentment_money": {
+          "amount": "0.00",
+          "currency_code": "USD"
+        }
+      },
+      "fulfillment_service": "manual",
+      "admin_graphql_api_id": "gid://shopify/LineItem/866550311766439020",
+      "discount_allocations": [],
+      "fulfillable_quantity": 1,
+      "sales_line_item_group_id": null,
+      "variant_inventory_management": "shopify"
+    },
+    {
+      "id": 789012345678901200,
+      "sku": "LENS-PROTECT-2YR",
+      "name": "Lens Protection Plan (2 Year)",
+      "grams": 0,
+      "price": "19.99",
+      "title": "Lens Protection Plan (2 Year)",
+      "duties": [],
+      "vendor": null,
+      "taxable": true,
+      "quantity": 1,
+      "gift_card": false,
+      "price_set": {
+        "shop_money": {
+          "amount": "19.99",
+          "currency_code": "USD"
+        },
+        "presentment_money": {
+          "amount": "19.99",
+          "currency_code": "USD"
+        }
+      },
+      "tax_lines": [],
+      "product_id": null,
+      "properties": [],
+      "variant_id": null,
+      "variant_title": null,
+      "product_exists": false,
+      "total_discount": "0.00",
+      "current_quantity": 1,
+      "attributed_staffs": [],
+      "requires_shipping": true,
+      "fulfillment_status": null,
+      "total_discount_set": {
+        "shop_money": {
+          "amount": "0.00",
+          "currency_code": "USD"
+        },
+        "presentment_money": {
+          "amount": "0.00",
+          "currency_code": "USD"
+        }
+      },
+      "fulfillment_service": "manual",
+      "admin_graphql_api_id": "gid://shopify/LineItem/789012345678901234",
+      "discount_allocations": [],
+      "fulfillable_quantity": 1,
+      "sales_line_item_group_id": 234567890123456800,
+      "variant_inventory_management": null
+    },
+    {
+      "id": 890123456789012400,
+      "sku": "CASE-LEATHER-PREM",
+      "name": "Premium Leather Case",
+      "grams": 0,
+      "price": "24.99",
+      "title": "Premium Leather Case",
+      "duties": [],
+      "vendor": null,
+      "taxable": true,
+      "quantity": 1,
+      "gift_card": false,
+      "price_set": {
+        "shop_money": {
+          "amount": "24.99",
+          "currency_code": "USD"
+        },
+        "presentment_money": {
+          "amount": "24.99",
+          "currency_code": "USD"
+        }
+      },
+      "tax_lines": [],
+      "product_id": null,
+      "properties": [],
+      "variant_id": null,
+      "variant_title": null,
+      "product_exists": false,
+      "total_discount": "0.00",
+      "current_quantity": 1,
+      "attributed_staffs": [],
+      "requires_shipping": true,
+      "fulfillment_status": null,
+      "total_discount_set": {
+        "shop_money": {
+          "amount": "0.00",
+          "currency_code": "USD"
+        },
+        "presentment_money": {
+          "amount": "0.00",
+          "currency_code": "USD"
+        }
+      },
+      "fulfillment_service": "manual",
+      "admin_graphql_api_id": "gid://shopify/LineItem/890123456789012345",
+      "discount_allocations": [],
+      "fulfillable_quantity": 1,
+      "sales_line_item_group_id": 234567890123456800,
+      "variant_inventory_management": null
+    },
+    {
+      "id": 141249953214522980,
+      "sku": "sku-untracked-1",
+      "name": "The Inventory Not Tracked Snowboard",
+      "grams": 0,
+      "price": "949.95",
+      "title": "The Inventory Not Tracked Snowboard",
+      "duties": [],
+      "vendor": null,
+      "taxable": true,
+      "quantity": 1,
+      "gift_card": false,
+      "price_set": {
+        "shop_money": {
+          "amount": "949.95",
+          "currency_code": "USD"
+        },
+        "presentment_money": {
+          "amount": "949.95",
+          "currency_code": "USD"
+        }
+      },
+      "tax_lines": [],
+      "product_id": 10216594112797,
+      "properties": [],
+      "variant_id": 51836483305757,
+      "variant_title": null,
+      "product_exists": true,
+      "total_discount": "0.00",
+      "current_quantity": 1,
+      "attributed_staffs": [],
+      "requires_shipping": true,
+      "fulfillment_status": null,
+      "total_discount_set": {
+        "shop_money": {
+          "amount": "0.00",
+          "currency_code": "USD"
+        },
+        "presentment_money": {
+          "amount": "0.00",
+          "currency_code": "USD"
+        }
+      },
+      "fulfillment_service": "manual",
+      "admin_graphql_api_id": "gid://shopify/LineItem/141249953214522974",
+      "discount_allocations": [],
+      "fulfillable_quantity": 1,
+      "sales_line_item_group_id": 142831562,
+      "variant_inventory_management": null
+    },
+    {
+      "id": 257004973105704600,
+      "sku": "",
+      "name": "The Archived Snowboard",
+      "grams": 0,
+      "price": "629.95",
+      "title": "The Archived Snowboard",
+      "duties": [],
+      "vendor": null,
+      "taxable": true,
+      "quantity": 1,
+      "gift_card": false,
+      "price_set": {
+        "shop_money": {
+          "amount": "629.95",
+          "currency_code": "USD"
+        },
+        "presentment_money": {
+          "amount": "629.95",
+          "currency_code": "USD"
+        }
+      },
+      "tax_lines": [],
+      "product_id": 10216594145565,
+      "properties": [],
+      "variant_id": 51836483076381,
+      "variant_title": null,
+      "product_exists": true,
+      "total_discount": "0.00",
+      "current_quantity": 1,
+      "attributed_staffs": [],
+      "requires_shipping": true,
+      "fulfillment_status": null,
+      "total_discount_set": {
+        "shop_money": {
+          "amount": "0.00",
+          "currency_code": "USD"
+        },
+        "presentment_money": {
+          "amount": "0.00",
+          "currency_code": "USD"
+        }
+      },
+      "fulfillment_service": "manual",
+      "admin_graphql_api_id": "gid://shopify/LineItem/257004973105704598",
+      "discount_allocations": [],
+      "fulfillable_quantity": 1,
+      "sales_line_item_group_id": 142831562,
+      "variant_inventory_management": "shopify"
+    }
+  ],
+  "source_url": null,
+  "tax_exempt": false,
+  "updated_at": "2026-06-03T19:14:08-04:00",
+  "location_id": null,
+  "source_name": "web",
+  "total_price": "1624.88",
+  "cancelled_at": "2026-06-03T19:14:08-04:00",
+  "fulfillments": [],
+  "landing_site": null,
+  "order_number": 1234,
+  "processed_at": "2026-06-03T19:14:08-04:00",
+  "total_weight": 0,
+  "cancel_reason": "customer",
+  "contact_email": "jon@example.com",
+  "payment_terms": null,
+  "total_tax_set": {
+    "shop_money": {
+      "amount": "0.00",
+      "currency_code": "USD"
+    },
+    "presentment_money": {
+      "amount": "0.00",
+      "currency_code": "USD"
+    }
+  },
+  "checkout_token": null,
+  "client_details": null,
+  "discount_codes": [],
+  "referring_site": null,
+  "shipping_lines": [
+    {
+      "id": 271878346596884000,
+      "code": null,
+      "phone": null,
+      "price": "10.00",
+      "title": "Generic Shipping",
+      "source": "shopify",
+      "price_set": {
+        "shop_money": {
+          "amount": "10.00",
+          "currency_code": "USD"
+        },
+        "presentment_money": {
+          "amount": "10.00",
+          "currency_code": "USD"
+        }
+      },
+      "tax_lines": [],
+      "is_removed": false,
+      "discounted_price": "0.00",
+      "carrier_identifier": null,
+      "discount_allocations": [],
+      "discounted_price_set": {
+        "shop_money": {
+          "amount": "0.00",
+          "currency_code": "USD"
+        },
+        "presentment_money": {
+          "amount": "0.00",
+          "currency_code": "USD"
+        }
+      },
+      "current_discounted_price_set": {
+        "shop_money": {
+          "amount": "0.00",
+          "currency_code": "USD"
+        },
+        "presentment_money": {
+          "amount": "0.00",
+          "currency_code": "USD"
+        }
+      },
+      "requested_fulfillment_service_id": null
+    }
+  ],
+  "subtotal_price": "1624.88",
+  "taxes_included": false,
+  "billing_address": {
+    "zip": "40003",
+    "city": "Shippington",
+    "name": "Steve Shipper",
+    "phone": "555-555-SHIP",
+    "company": "Shipping Company",
+    "country": "United States",
+    "address1": "123 Shipping Street",
+    "address2": null,
+    "latitude": null,
+    "province": "Kentucky",
+    "last_name": "Shipper",
+    "longitude": null,
+    "first_name": "Steve",
+    "country_code": "US",
+    "province_code": "KY"
+  },
+  "customer_locale": "en",
+  "duties_included": false,
+  "estimated_taxes": false,
+  "note_attributes": [],
+  "total_discounts": "20.00",
+  "total_price_set": {
+    "shop_money": {
+      "amount": "1624.88",
+      "currency_code": "USD"
+    },
+    "presentment_money": {
+      "amount": "1624.88",
+      "currency_code": "USD"
+    }
+  },
+  "financial_status": "voided",
+  "landing_site_ref": null,
+  "line_item_groups": [],
+  "order_status_url": "https://integrationengine-dev-store.myshopify.com/99647324445/orders/123456abcd/authenticate?key=abcdefg",
+  "shipping_address": {
+    "zip": "40003",
+    "city": "Shippington",
+    "name": "Steve Shipper",
+    "phone": "555-555-SHIP",
+    "company": "Shipping Company",
+    "country": "United States",
+    "address1": "123 Shipping Street",
+    "address2": null,
+    "latitude": null,
+    "province": "Kentucky",
+    "last_name": "Shipper",
+    "longitude": null,
+    "first_name": "Steve",
+    "country_code": "US",
+    "province_code": "KY"
+  },
+  "current_total_tax": "0.00",
+  "source_identifier": null,
+  "total_outstanding": "1634.88",
+  "fulfillment_status": null,
+  "subtotal_price_set": {
+    "shop_money": {
+      "amount": "1624.88",
+      "currency_code": "USD"
+    },
+    "presentment_money": {
+      "amount": "1624.88",
+      "currency_code": "USD"
+    }
+  },
+  "total_tip_received": "0.00",
+  "confirmation_number": null,
+  "current_total_price": "1634.88",
+  "total_discounts_set": {
+    "shop_money": {
+      "amount": "20.00",
+      "currency_code": "USD"
+    },
+    "presentment_money": {
+      "amount": "20.00",
+      "currency_code": "USD"
+    }
+  },
+  "admin_graphql_api_id": "gid://shopify/Order/820982911946154508",
+  "presentment_currency": "USD",
+  "current_total_tax_set": {
+    "shop_money": {
+      "amount": "0.00",
+      "currency_code": "USD"
+    },
+    "presentment_money": {
+      "amount": "0.00",
+      "currency_code": "USD"
+    }
+  },
+  "discount_applications": [],
+  "payment_gateway_names": [
+    "visa",
+    "bogus"
+  ],
+  "current_subtotal_price": "1634.88",
+  "total_line_items_price": "1634.88",
+  "buyer_accepts_marketing": true,
+  "current_total_discounts": "0.00",
+  "current_total_price_set": {
+    "shop_money": {
+      "amount": "1634.88",
+      "currency_code": "USD"
+    },
+    "presentment_money": {
+      "amount": "1634.88",
+      "currency_code": "USD"
+    }
+  },
+  "current_total_duties_set": null,
+  "total_shipping_price_set": {
+    "shop_money": {
+      "amount": "10.00",
+      "currency_code": "USD"
+    },
+    "presentment_money": {
+      "amount": "10.00",
+      "currency_code": "USD"
+    }
+  },
+  "merchant_of_record_app_id": null,
+  "original_total_duties_set": null,
+  "current_shipping_price_set": {
+    "shop_money": {
+      "amount": "0.00",
+      "currency_code": "USD"
+    },
+    "presentment_money": {
+      "amount": "0.00",
+      "currency_code": "USD"
+    }
+  },
+  "current_subtotal_price_set": {
+    "shop_money": {
+      "amount": "1634.88",
+      "currency_code": "USD"
+    },
+    "presentment_money": {
+      "amount": "1634.88",
+      "currency_code": "USD"
+    }
+  },
+  "total_line_items_price_set": {
+    "shop_money": {
+      "amount": "1634.88",
+      "currency_code": "USD"
+    },
+    "presentment_money": {
+      "amount": "1634.88",
+      "currency_code": "USD"
+    }
+  },
+  "current_total_discounts_set": {
+    "shop_money": {
+      "amount": "0.00",
+      "currency_code": "USD"
+    },
+    "presentment_money": {
+      "amount": "0.00",
+      "currency_code": "USD"
+    }
+  },
+  "merchant_business_entity_id": "33654243613",
+  "current_total_additional_fees_set": null,
+  "original_total_additional_fees_set": null,
+  "total_cash_rounding_refund_adjustment_set": {
+    "shop_money": {
+      "amount": "0.00",
+      "currency_code": "USD"
+    },
+    "presentment_money": {
+      "amount": "0.00",
+      "currency_code": "USD"
+    }
+  },
+  "total_cash_rounding_payment_adjustment_set": {
+    "shop_money": {
+      "amount": "0.00",
+      "currency_code": "USD"
+    },
+    "presentment_money": {
+      "amount": "0.00",
+      "currency_code": "USD"
+    }
+  }
+}
