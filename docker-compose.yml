@@ -8,7 +8,10 @@ services:
       POSTGRES_PASSWORD: integr8
       POSTGRES_DB: integr8
     ports:
-      - "5432:5432"
+      # Host port 5433 (not 5432) avoids colliding with Postgres.app or any other
+      # local Postgres install. Container still listens on 5432 internally, so
+      # the inter-container DATABASE_URL (postgres:5432) is unchanged.
+      - "5433:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:

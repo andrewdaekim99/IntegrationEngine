@@ -1,4 +1,4 @@
-# ROADMAP — Patchbay
+# ROADMAP — integr8
 
 A phased, dependency-aware build plan for the integration engine described in
 [`PROJECT_DIRECTION.md`](./PROJECT_DIRECTION.md). Sequenced so that **foundations the
@@ -25,7 +25,7 @@ before any UI polish, and **every phase ends in a demoable, runnable state**.
 
 ---
 
-## Phase 0 — Repo foundation & local dev loop
+## Phase 0 — Repo foundation & local dev loop ✅ COMPLETE
 
 **Goal:** A clean monorepo where `docker-compose up` boots an empty-but-wired stack and
 `pnpm test` / `pnpm typecheck` / `pnpm lint` all pass on a no-op codebase. Nothing
@@ -34,78 +34,82 @@ functional yet — just the rails everything else will run on.
 This phase is deliberately heavy because every shortcut here costs 10x later.
 
 ### Deliverables
-- [ ] `pnpm` workspace root with `apps/*` and `packages/*` per `CLAUDE.md` §Repo structure.
-- [ ] Root `tsconfig.base.json` with `strict: true`, `noImplicitAny`, `noUncheckedIndexedAccess`;
+- [x] `pnpm` workspace root with `apps/*` and `packages/*` per `CLAUDE.md` §Repo structure.
+- [x] Root `tsconfig.base.json` with `strict: true`, `noImplicitAny`, `noUncheckedIndexedAccess`;
       per-package `tsconfig.json` extending the base.
-- [ ] ESLint + Prettier configured at the root and inherited by all workspaces.
-- [ ] Vitest configured at the root; one trivial passing test in `packages/core`.
-- [ ] `docker-compose.yml` with services: `postgres`, `redis`, plus empty `api`, `worker`,
-      `dashboard`, `mock-erp` containers that build but no-op (just to prove the wiring).
-- [ ] `.env.example` listing every var named in `CLAUDE.md` §Environment; zod-based
-      `env.ts` loader in a shared package so all apps fail fast on missing config.
-- [ ] `packages/db` initialized with Prisma (empty schema, generated client, migration
+- [x] ESLint + Prettier configured at the root and inherited by all workspaces.
+- [x] Vitest configured at the root; one trivial passing test in `packages/core`.
+- [x] `docker-compose.yml` with services: `postgres`, `redis`, plus `api`, `worker`,
+      `dashboard`, `mock-erp` containers (api + mock-erp expose `/healthz`).
+- [x] `.env.example` listing every var named in `CLAUDE.md` §Environment; zod-based
+      `env.ts` loader in `packages/core` so all apps fail fast on missing config.
+- [x] `packages/db` initialized with Prisma (empty schema, generated client, migration
       command wired into `pnpm db:migrate`).
-- [ ] pino logger factory in `packages/core` (or `packages/logger`) — used by every app.
-- [ ] All scripts in `CLAUDE.md` §Commands work (`pnpm install`, `dev`, `test`, `lint`,
+- [x] pino logger factory in `packages/core` — used by every app.
+- [x] All scripts in `CLAUDE.md` §Commands work (`pnpm install`, `dev`, `test`, `lint`,
       `format`, `typecheck`, `db:migrate`, `db:generate`).
-- [ ] `README.md` skeleton + first entry in `DECISIONS.md` (e.g. "why pnpm + Fastify").
-- [ ] `.gitignore` covering `.env`, `node_modules`, `dist`, Prisma client, build outputs.
+- [x] `README.md` skeleton + first 8 entries in `DECISIONS.md` (project name, pnpm,
+      TS strict, Fastify, Prisma, pino, shared Dockerfile, zod env loader).
+- [x] `.gitignore` covering `.env`, `node_modules`, `dist`, Prisma client, build outputs.
 
 ### Manual steps (you)
-- [ ] Install **Node 20+** (e.g. via `nvm install 20`).
-- [ ] Install **pnpm** globally (`npm i -g pnpm` or via corepack).
-- [ ] Install **Docker Desktop** and confirm `docker` + `docker compose` work.
-- [ ] **Decide the final project name** (the working title is "Patchbay" — rename now or
-      commit to it; renaming after Phase 1 touches a lot of files).
-- [ ] Run `git init` in this directory (the env note says it isn't a git repo yet).
-- [ ] *(Optional)* Create an empty GitHub repo and add it as `origin` if you want the
-      project pushed remotely from day one.
-- [ ] After Claude generates `.env.example`, copy it to `.env` (`cp .env.example .env`)
-      so docker-compose can boot. Phase 0 values can stay as placeholders.
+- [x] Install **Node 20+** (you had Node 22 already).
+- [x] Install **pnpm** globally (via corepack).
+- [x] Install **Docker Desktop** and confirm `docker` + `docker compose` work.
+- [x] **Decide the final project name** — chose **integr8** (overrides "Patchbay" working title).
+- [x] Run `git init` in this directory.
+- [x] Create the GitHub repo (`andrewdaekim99/IntegrationEngine`) and wire it as `origin`.
+- [x] Copy `.env.example` to `.env` so docker-compose can boot.
 
 ### Definition of done
 - Cold clone → `pnpm install` → `cp .env.example .env` → `docker-compose up` boots the
-  full stack with no errors.
-- `pnpm test`, `pnpm typecheck`, `pnpm lint` all green.
+  full stack with no errors. ✅
+- `pnpm test`, `pnpm typecheck`, `pnpm lint` all green. ✅
 
 ### Demo
 - Terminal: `docker-compose up` shows all six services running.
+- API healthcheck: `curl localhost:3010/healthz` → `{"ok":true,"service":"api"}`.
+- Mock ERP healthcheck: `curl localhost:3002/healthz` → `{"ok":true,"service":"mock-erp"}`.
+- Dashboard: <http://localhost:3003> renders the Phase 0 placeholder.
 
 ---
 
-## Phase 1 — Domain model & core interfaces
+## Phase 1 — Domain model & core interfaces ✅ COMPLETE
 
 **Goal:** Define the contracts the rest of the system will implement against. No business
 logic yet — just types, schemas, and interfaces. **This is the phase that determines
 whether the connector + queue abstractions actually pay off later.**
 
 ### Deliverables
-- [ ] Prisma schema for the persistence model:
-  - `IngestedEvent` (id, source, externalId, rawPayload jsonb, signatureVerified,
-    receivedAt, processedAt nullable, status).
-  - `SyncRun` (id, eventId fk, attempt, startedAt, finishedAt, outcome, errorMessage).
-  - `DeadLetterItem` (id, eventId fk, lastError, attempts, createdAt, resolvedAt nullable).
-  - `MappingConfig` (id, sourceSystem, destinationSystem, version, fields jsonb,
-    createdAt, approvedBy).
-  - Indexes on `(source, externalId)` (idempotency lookup) and `status` (worker dispatch).
-- [ ] First migration applied; Prisma client regenerated.
-- [ ] `packages/core` domain types — branded ids, `Result<T, E>` / typed error hierarchy
-      distinguishing **retryable** vs **terminal** failures (per `CLAUDE.md`).
-- [ ] `packages/queue` — `Queue<T>` interface (`enqueue`, `consume`, `ack`, `nack`,
-      `moveToDLQ`) with **no** concrete impl yet, plus an in-memory fake for tests.
-- [ ] `packages/connectors` — `SourceConnector` and `DestinationConnector` interfaces
-      (verify signature, parse payload; deliver, healthcheck) + a noop fake for tests.
-- [ ] Vitest contract tests asserting that any `Queue` / connector impl must round-trip
-      a payload, handle nack, etc. These tests become the **conformance suite** every
-      future adapter has to pass.
+- [x] Prisma schema for the persistence model:
+  - `IngestedEvent` (id, source, externalId, topic, rawPayload jsonb, signatureVerified,
+    receivedAt, processedAt nullable, status enum).
+  - `SyncRun` (id, eventId fk, destination, attempt, startedAt, finishedAt, outcome enum,
+    errorMessage).
+  - `DeadLetterItem` (id, eventId fk unique, lastError, attempts, createdAt, resolvedAt nullable).
+  - `MappingConfig` (id, sourceSystem, destinationSystem, version, fields jsonb, isActive,
+    approvedBy, approvedAt, createdAt).
+  - Indexes: `(source, externalId, topic)` UNIQUE = idempotency key; `status` for dispatch;
+    `resolvedAt` for DLQ unresolved filter.
+- [x] First migration applied (`20260603214346_init`); Prisma client regenerated.
+- [x] `packages/core` domain types — branded ids (EventId, SyncRunId, …), `Result<T, E>`,
+      typed error hierarchy (`IntegrationError` → `RetryableError` / `TerminalError`).
+- [x] `packages/queue` — `Queue<T>` interface (`enqueue`, `consume`, `ack`, `nack`,
+      `moveToDLQ`, `listDeadLetters`, `replayDeadLetter`, `close`) + `InMemoryQueue` impl.
+- [x] `packages/connectors` — `SourceConnector` + `DestinationConnector` interfaces
+      + `NoopSourceConnector` + `NoopDestinationConnector` (recording) fakes.
+- [x] Vitest contract tests: `runQueueConformance`, `runSourceConformance`,
+      `runDestinationConformance` exported from each package's `./conformance` subpath.
+      24 tests passing total.
 
 ### Definition of done
-- Migrations apply cleanly on a fresh DB.
-- Contract tests pass against the in-memory fakes.
-- No concrete provider (BullMQ, Shopify) imported anywhere in `packages/core`.
+- Migrations apply cleanly on a fresh DB. ✅
+- Contract tests pass against the in-memory fakes (24/24). ✅
+- No concrete provider (BullMQ, Shopify) imported anywhere in `packages/core`. ✅
 
 ### Demo
-- `pnpm test --filter queue` shows the conformance suite passing against the fake.
+- `pnpm test` shows 6 test files / 24 tests passing — queue + connector conformance
+  suites both green against their respective noop/in-memory fakes.
 
 ---
 

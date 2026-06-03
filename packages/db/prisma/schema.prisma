@@ -1,6 +1,17 @@
-// Prisma schema for integr8.
-// Phase 0: empty — only generator + datasource so the client can be generated.
-// Phase 1 adds IngestedEvent, SyncRun, DeadLetterItem, MappingConfig.
+// integr8 persistence model.
+//
+// Phase 1 locks the four tables the engine pivots on:
+//   - IngestedEvent : the raw inbound event (one row per webhook)
+//   - SyncRun       : each attempt to deliver one event to one destination
+//   - DeadLetterItem: terminally-failed events awaiting manual replay
+//   - MappingConfig : versioned field mapping the worker uses to transform payloads
+//
+// Indexing rationale:
+//   - (source, externalId, topic) UNIQUE on IngestedEvent is the idempotency key —
+//     the same webhook re-delivered will collide here, so dedupe is a primary-key
+//     lookup, not a search.
+//   - status index on IngestedEvent powers the worker's dispatch query.
+//   - resolvedAt on DeadLetterItem speeds the DLQ "show unresolved" view.
 
 generator client {
   provider = "prisma-client-js"
@@ -9,4 +20,107 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// IngestedEvent — raw inbound webhook / poll result. Persisted BEFORE any
+// processing so we never lose data even if the worker is down.
+// ---------------------------------------------------------------------------
+
+enum EventStatus {
+  RECEIVED      // persisted, awaiting worker pickup
+  PROCESSING    // worker has claimed it
+  SUCCEEDED     // at least one SyncRun for it succeeded; terminal
+  DEDUPED       // a prior event with the same (source, externalId, topic) already succeeded
+  RETRYING      // last attempt failed retryably; will be re-attempted
+  DEAD_LETTERED // exhausted retries or terminal failure; see DeadLetterItem
+}
+
+model IngestedEvent {
+  id                String         @id @default(uuid())
+  source            String         // 'shopify', 'stripe', ...
+  externalId        String         // the source-system id (e.g. Shopify order id)
+  topic             String         // 'orders/create', 'orders/updated', ...
+  rawPayload        Json
+  signatureVerified Boolean        @default(false)
+  receivedAt        DateTime       @default(now())
+  processedAt       DateTime?
+  status            EventStatus    @default(RECEIVED)
+
+  syncRuns          SyncRun[]
+  deadLetterItem    DeadLetterItem?
+
+  @@unique([source, externalId, topic], name: "idempotency_key")
+  @@index([status])
+  @@index([source, externalId])
+}
+
+// ---------------------------------------------------------------------------
+// SyncRun — one row per (event × destination × attempt). Captures the full
+// history of delivery attempts so the dashboard can replay the story.
+// ---------------------------------------------------------------------------
+
+enum SyncRunOutcome {
+  PENDING            // started, not finished
+  SUCCEEDED
+  RETRYABLE_FAILURE  // transient (network, 5xx) — will retry
+  TERMINAL_FAILURE   // permanent (4xx, schema) — straight to DLQ
+  DEDUPED            // we noticed this event was already processed
+}
+
+model SyncRun {
+  id           String         @id @default(uuid())
+  eventId      String
+  event        IngestedEvent  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  destination  String         // 'mock-erp', 'stripe', ...
+  attempt      Int            // 1-indexed
+  startedAt    DateTime       @default(now())
+  finishedAt   DateTime?
+  outcome      SyncRunOutcome @default(PENDING)
+  errorMessage String?
+
+  @@index([eventId])
+  @@index([outcome])
+}
+
+// ---------------------------------------------------------------------------
+// DeadLetterItem — one row per event that exhausted retries or hit a terminal
+// error. The dashboard's DLQ view + manual replay are anchored here.
+// ---------------------------------------------------------------------------
+
+model DeadLetterItem {
+  id         String        @id @default(uuid())
+  eventId    String        @unique
+  event      IngestedEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  lastError  String
+  attempts   Int
+  createdAt  DateTime      @default(now())
+  resolvedAt DateTime?
+
+  @@index([resolvedAt])
+}
+
+// ---------------------------------------------------------------------------
+// MappingConfig — versioned field-mapping spec used by the worker to transform
+// source payloads into destination shapes. Phase 3 uses a hard-coded fallback
+// when no row exists; Phase 6 (AI Mapping Studio) writes approved configs here.
+//
+// Application-layer rule: at most one row per (sourceSystem, destinationSystem)
+// has isActive = true. We don't enforce this with a partial unique index in
+// Prisma to keep the schema portable; the worker query picks the latest active.
+// ---------------------------------------------------------------------------
+
+model MappingConfig {
+  id                String    @id @default(uuid())
+  sourceSystem      String
+  destinationSystem String
+  version           Int
+  fields            Json
+  isActive          Boolean   @default(false)
+  approvedBy        String?
+  approvedAt        DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@unique([sourceSystem, destinationSystem, version])
+  @@index([sourceSystem, destinationSystem, isActive])
 }

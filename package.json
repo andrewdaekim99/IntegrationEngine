@@ -16,12 +16,14 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "pnpm -r run typecheck",
-    "db:migrate": "pnpm --filter @integr8/db exec prisma migrate dev",
-    "db:generate": "pnpm --filter @integr8/db exec prisma generate"
+    "db:migrate": "dotenv -e .env -- pnpm --filter @integr8/db exec prisma migrate dev",
+    "db:generate": "dotenv -e .env -- pnpm --filter @integr8/db exec prisma generate",
+    "db:studio": "dotenv -e .env -- pnpm --filter @integr8/db exec prisma studio"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
     "@types/node": "^22.10.5",
+    "dotenv-cli": "^7.4.4",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^9.1.0",
     "prettier": "^3.4.2",
