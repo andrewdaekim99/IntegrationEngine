@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@integr8/core": "workspace:*",
+    "@integr8/db": "workspace:*",
     "fastify": "^5.2.1"
   },
   "devDependencies": {

@@ -1,0 +1,35 @@
+{
+  "id": 5912345678901,
+  "email": "buyer@example.com",
+  "created_at": "2026-06-03T14:00:00-04:00",
+  "total_price": "42.50",
+  "currency": "USD",
+  "customer": {
+    "id": 7012345678901,
+    "email": "buyer@example.com",
+    "first_name": "Test",
+    "last_name": "Buyer"
+  },
+  "line_items": [
+    {
+      "id": 14012345678901,
+      "title": "Integr8 Tee",
+      "quantity": 1,
+      "price": "29.50",
+      "sku": "TEE-001"
+    },
+    {
+      "id": 14012345678902,
+      "title": "Sticker pack",
+      "quantity": 3,
+      "price": "4.00",
+      "sku": "STK-003"
+    }
+  ],
+  "shipping_address": {
+    "address1": "123 Test St",
+    "city": "Brooklyn",
+    "country": "United States",
+    "zip": "11201"
+  }
+}

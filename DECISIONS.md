@@ -5,6 +5,73 @@ New entries go at the top.
 
 ---
 
+## 2026-06-03 — Phase 2 concrete adapters
+
+### D17. BullMQ bridge for explicit ack / nack / moveToDLQ
+
+BullMQ is auto-ack — handler returns = complete, handler throws = retry. Our
+`Queue<T>` interface is explicit (the handler calls `queue.ack(id)` /
+`queue.nack(id)` / `queue.moveToDLQ(id, err)` itself). The adapter bridges the
+gap by stashing a per-job `decisions` resolver in a Map keyed by `JobId`, then
+awaiting the resolver inside the BullMQ worker function. `ack`/`nack`/`moveToDLQ`
+just look up the resolver and call it. Trade-off: holds one Promise per
+in-flight job in memory — fine for our concurrency targets.
+
+### D18. Separate `${queueName}-dlq` Bull queue, not failed-job retention
+
+BullMQ's "failed" state is transient and tied to the original job, so listing
+DLQ items would mean iterating failed jobs across the main queue. Routing
+moveToDLQ writes to a dedicated `${queueName}-dlq` Bull queue makes
+`listDeadLetters` a single `getJobs(['waiting'])` call and replay a clean
+re-enqueue → remove pair.
+
+### D19. BullMQ connection via URL config, not a Redis instance
+
+ioredis 5.10.x (BullMQ-bundled) and 5.11.x (latest) have structurally
+incompatible types — passing a `new Redis(url)` from one version to BullMQ from
+the other fails typecheck. Passing `{ url, maxRetriesPerRequest: null }` lets
+BullMQ construct its own connection internally; no direct ioredis dep in
+`@integr8/queue`. The Redis-reachability probe in tests uses a raw `net.connect`
+so it doesn't depend on ioredis at all.
+
+### D20. Shopify HMAC verification with `crypto.timingSafeEqual`
+
+Standard defense against timing attacks on the webhook secret. The compare is
+on Buffers of equal length (the base64-encoded HMAC strings); length mismatch
+short-circuits to `false` without calling `timingSafeEqual` (which would throw
+on length mismatch). The signing helper (`signShopifyBody`) is exported for
+test fixtures only.
+
+### D21. `ShopifyOrder` zod schema is intentionally narrow
+
+Real Shopify webhooks have ~100 fields. The schema declares only what the
+engine reads when mapping to destinations (id, totals, line items, customer,
+shipping). Zod is permissive about unknown keys by default and we don't call
+`.strict()` — that way new Shopify fields don't break ingestion. Every field
+the worker *reads*, however, must be declared here so a typo at the call site
+is a type error, not a runtime undefined.
+
+### D22. `MockErpOrder` in the same Postgres database
+
+Architecturally the engine treats apps/mock-erp as a separate system (talks to
+it over HTTP, same as a real ERP). Practically, sharing one Postgres avoids a
+second Prisma schema, a second container, and a second migration story for a
+demo project. The contract — "engine code never imports `MockErpOrder` from
+`@integr8/db`" — is enforced by review, not by schema isolation. If we ever
+need real isolation (multi-tenant demo, second source connector), splitting
+the schema is a couple-day refactor, not a redesign.
+
+### D23. Idempotency in mock-erp: findUnique → create → catch unique violation
+
+The classic idempotent-insert pattern with a race-safe fallback. Two concurrent
+requests with the same `Idempotency-Key` both pass `findUnique` (both see no
+row), both attempt `create`, the database's `@unique` constraint lets exactly
+one win, the loser catches `P2002 / "Unique constraint"` and reads back the
+winner's row. Returned `status` field tells the caller `"created"` vs
+`"duplicate"` for log clarity; the row body is identical either way.
+
+---
+
 ## 2026-06-03 — Phase 1 domain model & core interfaces
 
 ### D9. Idempotency key = `(source, externalId, topic)` UNIQUE on `IngestedEvent`

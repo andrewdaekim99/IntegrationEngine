@@ -124,3 +124,17 @@ model MappingConfig {
   @@unique([sourceSystem, destinationSystem, version])
   @@index([sourceSystem, destinationSystem, isActive])
 }
+
+// ---------------------------------------------------------------------------
+// MockErpOrder — apps/mock-erp's private storage. The integr8 engine MUST NOT
+// read or write this table directly; the Mock ERP destination connector talks
+// to apps/mock-erp over HTTP, just as a real ERP integration would. Lives in
+// the same Postgres for docker-compose simplicity, not by abstraction choice.
+// ---------------------------------------------------------------------------
+
+model MockErpOrder {
+  id             String   @id @default(uuid())
+  idempotencyKey String   @unique
+  payload        Json
+  createdAt      DateTime @default(now())
+}

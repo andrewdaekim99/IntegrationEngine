@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@integr8/core": "workspace:*"
+    "@integr8/core": "workspace:*",
+    "bullmq": "^5.34.5"
   }
 }
