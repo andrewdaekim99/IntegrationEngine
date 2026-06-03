@@ -148,7 +148,7 @@ work with one real provider each before wiring the engine together.
 
 ---
 
-## Phase 3 — Happy-path end-to-end 🚧 CODE COMPLETE, AWAITING REAL SHOPIFY WEBHOOK
+## Phase 3 — Happy-path end-to-end ✅ COMPLETE
 
 **Goal:** A real Shopify order webhook lands in the API and a row appears in Mock ERP.
 No reliability features yet (no retry, no DLQ) — just prove the pipe is connected.
@@ -177,13 +177,16 @@ No reliability features yet (no retry, no DLQ) — just prove the pipe is connec
 - [x] Create a **development store** under that Partners account (free, no card).
 - [x] Add a sample product and a test customer to the dev store so orders can be placed.
 - [x] Install **ngrok** + sign up + add auth token.
-- [ ] Start ngrok pointing at the local API: `ngrok http 3010`.
-- [ ] In the dev store admin, register a webhook for the **`orders/create`** topic
+- [x] Start ngrok pointing at the local API: `ngrok http 3010`.
+- [x] In the dev store admin, register a webhook for the **`orders/create`** topic
       pointing at `<ngrok-https-url>/webhooks/shopify/orders` (JSON format).
-- [ ] Copy the **webhook signing secret** Shopify shows you into `.env` as
-      `SHOPIFY_WEBHOOK_SECRET`; `docker compose restart api` to pick it up.
-- [ ] Place a test order in the dev store to fire the first real webhook.
-- [ ] *(Recommended)* Save 1–2 real webhook payloads as fixtures in
+      **Note:** free-tier ngrok URLs end in `.ngrok-free.dev` (not `.app`).
+- [x] Copy the **webhook signing secret** Shopify shows you into `.env` as
+      `SHOPIFY_WEBHOOK_SECRET`; then `docker compose up -d --force-recreate api`
+      to actually reload the env (`restart` does NOT re-read env_file).
+- [x] Trigger a real Shopify webhook (via *Send test notification* button on the
+      Webhooks page) — HMAC verifies, worker delivers, mock-erp row written.
+- [ ] *(Optional)* Save 1–2 real webhook payloads as fixtures in
       `packages/connectors/src/shopify/__fixtures__/` so future tests don't need the tunnel.
 
 ### Definition of done
