@@ -34,3 +34,7 @@ coverage/
 
 # Turbo / cache
 .turbo/
+
+# Phase 8 AWS deploy — filled-in task definitions contain live secrets
+# (DATABASE_URL with password, STRIPE_TEST_KEY, ANTHROPIC_API_KEY, etc.)
+infra/task-def-*.json
