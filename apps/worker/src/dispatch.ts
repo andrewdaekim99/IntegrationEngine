@@ -1,16 +1,13 @@
 import type { Logger, SyncJobPayload } from '@integr8/core';
 import { PrismaClient } from '@integr8/db';
-import type { DestinationConnector, MockErpOrderInput } from '@integr8/connectors';
 import type { Queue, QueueJob } from '@integr8/queue';
-import { processEvent } from './process-event.js';
+import { processEvent, type DestinationSpec } from './process-event.js';
 import { backoffDelayMs, shouldRetry, type RetryPolicy } from './retry-policy.js';
 
 export interface DispatchDeps {
   prisma: PrismaClient;
   queue: Queue<SyncJobPayload>;
-  destination: DestinationConnector<MockErpOrderInput>;
-  /** Override the recorded `SyncRun.destination` value. Defaults to `destination.name`. */
-  destinationName?: string;
+  destinations: DestinationSpec[];
   retryPolicy: RetryPolicy;
   logger: Logger;
 }
@@ -22,80 +19,57 @@ export type DispatchResult =
   | { kind: 'DEAD_LETTERED'; error: string };
 
 /**
- * The reliability core. Called for each job pulled off the queue:
+ * The reliability core. Phase 7: per-destination fan-out happens inside
+ * `processEvent`, which writes one SyncRun per destination with per-destination
+ * dedupe. The dispatcher just routes on the aggregate outcome:
  *
- *   1. Dedupe: if this eventId already has a SUCCEEDED SyncRun, record a
- *      DEDUPED row and ack. Catches at-least-once re-deliveries and accidental
- *      double-enqueues from the API.
- *   2. Process: run `processEvent` to talk to the destination.
- *   3. Route:
- *      - SUCCEEDED → ack; mark any open DeadLetterItem resolved (replay path).
- *      - RETRYABLE_FAILURE + retries left → nack with exponential backoff;
- *        event status → RETRYING.
- *      - TERMINAL_FAILURE or RETRYABLE_FAILURE + retries exhausted →
- *        write/refresh DeadLetterItem, event status → DEAD_LETTERED, ack.
+ *   - SUCCEEDED / DEDUPED → mark any open DeadLetterItem resolved; ack.
+ *   - RETRYABLE_FAILURE + retries left → nack with exponential backoff;
+ *     event status → RETRYING.
+ *   - TERMINAL_FAILURE or retries exhausted → write/refresh DeadLetterItem,
+ *     event status → DEAD_LETTERED, ack.
  *
- * NOTE: we do NOT call `queue.moveToDLQ` operationally. The
- * `DeadLetterItem` table in Postgres is the source of truth for the dashboard
- * and the manual replay endpoint; the queue's DLQ is just there for the
- * conformance suite. Acking on DLQ keeps the active queue clean.
+ * NOTE: we do NOT call `queue.moveToDLQ` operationally. The `DeadLetterItem`
+ * table in Postgres is the source of truth for the dashboard and the manual
+ * replay endpoint; the queue's DLQ is just there for the conformance suite.
+ * Acking on DLQ keeps the active queue clean.
+ *
+ * The Phase 4 single-destination top-level dedupe is gone — per-destination
+ * dedupe inside `processEvent` is strictly more accurate (won't skip a stripe
+ * retry just because mock-erp already succeeded).
  */
 export async function dispatch(
   deps: DispatchDeps,
   job: QueueJob<SyncJobPayload>,
 ): Promise<DispatchResult> {
-  const { prisma, queue, destination, retryPolicy } = deps;
-  const destinationName = deps.destinationName ?? destination.name;
+  const { prisma, queue, destinations, retryPolicy } = deps;
   const log = deps.logger.child({
     jobId: job.id,
     eventId: job.payload.eventId,
     attempt: job.attempt,
   });
 
-  // 1. Consumer-side dedupe by prior success.
-  const priorSuccess = await prisma.syncRun.findFirst({
-    where: { eventId: job.payload.eventId, outcome: 'SUCCEEDED' },
-  });
-  if (priorSuccess) {
-    log.info({ priorRunId: priorSuccess.id }, 'event already succeeded — deduping');
-    await prisma.syncRun.create({
-      data: {
-        eventId: job.payload.eventId,
-        destination: destinationName,
-        attempt: job.attempt,
-        outcome: 'DEDUPED',
-        finishedAt: new Date(),
-      },
-    });
-    await queue.ack(job.id);
-    return { kind: 'DEDUPED' };
-  }
-
-  // 2. Process.
   const result = await processEvent({
     prisma,
-    destination,
-    destinationName,
+    destinations,
     eventId: job.payload.eventId,
     attempt: job.attempt,
     log,
   });
 
-  // 3. Route.
   if (result.kind === 'NOT_FOUND') {
     log.error('event not found in DB; acking to prevent loop');
     await queue.ack(job.id);
     return { kind: 'DEAD_LETTERED', error: `event ${job.payload.eventId} not found` };
   }
 
-  if (result.kind === 'SUCCEEDED') {
-    // Replay path: mark any open DLQ row resolved.
+  if (result.kind === 'SUCCEEDED' || result.kind === 'DEDUPED') {
     await prisma.deadLetterItem.updateMany({
       where: { eventId: job.payload.eventId, resolvedAt: null },
       data: { resolvedAt: new Date() },
     });
     await queue.ack(job.id);
-    return { kind: 'SUCCEEDED' };
+    return { kind: result.kind };
   }
 
   if (result.kind === 'RETRYABLE_FAILURE' && shouldRetry(job.attempt, retryPolicy)) {
@@ -138,7 +112,6 @@ async function routeToDeadLetter(opts: {
       data: { eventId, lastError: error, attempts },
     });
   } else if (existing.resolvedAt) {
-    // Reopen a previously-resolved DLQ item.
     await prisma.deadLetterItem.update({
       where: { eventId },
       data: { lastError: error, attempts, resolvedAt: null, createdAt: new Date() },

@@ -7,40 +7,52 @@ import {
 import { PrismaClient } from '@integr8/db';
 import {
   type DestinationConnector,
-  type MockErpOrderInput,
   shopifyOrderSchema,
+  type ShopifyOrder,
 } from '@integr8/connectors';
-import { mapShopifyOrderToMockErp } from './mapping.js';
 
-const MOCK_ERP_DESTINATION = 'mock-erp';
+/**
+ * Per-destination configuration the worker fans an event out to. The connector
+ * does the delivery; `hardcodedMapper` is the fallback used when no active
+ * `MappingConfig` exists for `(SHOPIFY_SOURCE, name)`.
+ */
+export interface DestinationSpec {
+  name: string;
+  connector: DestinationConnector<unknown>;
+  hardcodedMapper: (order: ShopifyOrder) => unknown;
+}
 
 export type ProcessOutcome =
   | { kind: 'SUCCEEDED' }
+  | { kind: 'DEDUPED' }
   | { kind: 'NOT_FOUND' }
   | { kind: 'RETRYABLE_FAILURE'; error: string }
   | { kind: 'TERMINAL_FAILURE'; error: string };
 
 export interface ProcessEventOptions {
   prisma: PrismaClient;
-  destination: DestinationConnector<MockErpOrderInput>;
-  destinationName?: string;
+  destinations: DestinationSpec[];
   eventId: string;
   attempt: number;
   log: Logger;
 }
 
 /**
- * Pipeline: load the persisted IngestedEvent, mark PROCESSING, re-parse the
- * payload, map to the destination shape, deliver, write a SyncRun row.
+ * Phase 7 pipeline. Loads the event, re-parses the payload, fans out to every
+ * configured destination (each gets its own SyncRun + per-destination dedupe),
+ * then aggregates a single `ProcessOutcome` the dispatcher routes on:
+ *   - all destinations SUCCEEDED or DEDUPED → SUCCEEDED (DEDUPED only when
+ *     every destination was deduped — useful for the dispatcher's bookkeeping).
+ *   - any TERMINAL_FAILURE → TERMINAL_FAILURE (whole event goes to DLQ; replay
+ *     re-runs each destination, but per-destination dedupe skips ones that
+ *     already succeeded).
+ *   - else (only RETRYABLE failures) → RETRYABLE_FAILURE.
  *
- * Updates `IngestedEvent.status` to `SUCCEEDED` on success only. On any
- * failure, the SyncRun row is written but the event status is left for the
- * dispatcher to set — `RETRYING` (will be retried) or `DEAD_LETTERED`
- * (terminal / out of retries).
+ * `IngestedEvent.status` is updated to SUCCEEDED on the all-ok path; the
+ * dispatcher owns transitions to RETRYING / DEAD_LETTERED.
  */
 export async function processEvent(opts: ProcessEventOptions): Promise<ProcessOutcome> {
-  const { prisma, destination, eventId, attempt, log } = opts;
-  const destinationName = opts.destinationName ?? destination.name;
+  const { prisma, destinations, eventId, attempt, log } = opts;
 
   const event = await prisma.ingestedEvent.findUnique({ where: { id: eventId } });
   if (!event) {
@@ -53,49 +65,142 @@ export async function processEvent(opts: ProcessEventOptions): Promise<ProcessOu
     data: { status: 'PROCESSING' },
   });
 
-  const syncRun = await prisma.syncRun.create({
-    data: {
-      eventId,
-      destination: destinationName,
-      attempt,
-      outcome: 'PENDING',
-    },
-  });
-  const runLog = log.child({ runId: syncRun.id });
-
   const parsed = shopifyOrderSchema.safeParse(event.rawPayload);
   if (!parsed.success) {
     const error = `stored payload doesn't match Shopify schema: ${parsed.error.message}`;
-    runLog.error({ err: error }, 'payload re-parse failed');
-    await prisma.syncRun.update({
-      where: { id: syncRun.id },
-      data: { outcome: 'TERMINAL_FAILURE', finishedAt: new Date(), errorMessage: error },
-    });
+    log.error({ err: error }, 'payload re-parse failed');
     return { kind: 'TERMINAL_FAILURE', error };
   }
+  const order = parsed.data;
 
-  const mockErpInput = await resolveMockErpInput({
-    prisma,
-    shopifyOrder: parsed.data,
-    log: runLog,
+  const perDest: Array<{ name: string; outcome: ProcessOutcome }> = [];
+  for (const dest of destinations) {
+    const outcome = await deliverToDestination({
+      prisma,
+      dest,
+      order,
+      eventId,
+      attempt,
+      log,
+    });
+    perDest.push({ name: dest.name, outcome });
+  }
+
+  const allDeduped =
+    perDest.length > 0 && perDest.every((r) => r.outcome.kind === 'DEDUPED');
+  const allOk = perDest.every(
+    (r) => r.outcome.kind === 'SUCCEEDED' || r.outcome.kind === 'DEDUPED',
+  );
+
+  if (allOk) {
+    await prisma.ingestedEvent.update({
+      where: { id: eventId },
+      data: { status: 'SUCCEEDED', processedAt: new Date() },
+    });
+    return allDeduped ? { kind: 'DEDUPED' } : { kind: 'SUCCEEDED' };
+  }
+
+  const anyTerminal = perDest.some((r) => r.outcome.kind === 'TERMINAL_FAILURE');
+  const errors = perDest
+    .filter(
+      (r) =>
+        r.outcome.kind === 'TERMINAL_FAILURE' || r.outcome.kind === 'RETRYABLE_FAILURE',
+    )
+    .map((r) => {
+      const o = r.outcome as { error: string };
+      return `${r.name}: ${o.error}`;
+    })
+    .join('; ');
+
+  if (anyTerminal) return { kind: 'TERMINAL_FAILURE', error: errors };
+  return { kind: 'RETRYABLE_FAILURE', error: errors };
+}
+
+async function deliverToDestination(opts: {
+  prisma: PrismaClient;
+  dest: DestinationSpec;
+  order: ShopifyOrder;
+  eventId: string;
+  attempt: number;
+  log: Logger;
+}): Promise<ProcessOutcome> {
+  const { prisma, dest, order, eventId, attempt, log } = opts;
+  const destLog = log.child({ destination: dest.name });
+
+  // Per-destination dedupe.
+  const priorSuccess = await prisma.syncRun.findFirst({
+    where: { eventId, outcome: 'SUCCEEDED', destination: dest.name },
   });
-  const idempotencyKey = `event-${eventId}`;
-  runLog.info({ idempotencyKey, destinationName }, 'delivering');
+  if (priorSuccess) {
+    destLog.info({ priorRunId: priorSuccess.id }, 'already succeeded — deduping');
+    await prisma.syncRun.create({
+      data: {
+        eventId,
+        destination: dest.name,
+        attempt,
+        outcome: 'DEDUPED',
+        finishedAt: new Date(),
+      },
+    });
+    return { kind: 'DEDUPED' };
+  }
 
-  const result = await destination.deliver(mockErpInput, idempotencyKey);
+  const syncRun = await prisma.syncRun.create({
+    data: { eventId, destination: dest.name, attempt, outcome: 'PENDING' },
+  });
+  const runLog = destLog.child({ runId: syncRun.id });
+
+  const mappingConfig = await prisma.mappingConfig.findFirst({
+    where: {
+      sourceSystem: SHOPIFY_SOURCE,
+      destinationSystem: dest.name,
+      isActive: true,
+    },
+    orderBy: { version: 'desc' },
+  });
+
+  let input: unknown;
+  if (mappingConfig) {
+    const specResult = mappingSpecSchema.safeParse(mappingConfig.fields);
+    if (specResult.success) {
+      runLog.info(
+        { mappingConfigId: mappingConfig.id, version: mappingConfig.version },
+        'applying AI-approved mapping',
+      );
+      input = applyMapping(order, specResult.data);
+    } else {
+      runLog.warn(
+        { mappingConfigId: mappingConfig.id, err: specResult.error.message },
+        'active MappingConfig.fields failed validation — using hardcoded mapper',
+      );
+      input = dest.hardcodedMapper(order);
+    }
+  } else {
+    runLog.debug('no active MappingConfig — using hardcoded mapper');
+    try {
+      input = dest.hardcodedMapper(order);
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e);
+      runLog.error({ err: error }, 'hardcoded mapper threw');
+      await prisma.syncRun.update({
+        where: { id: syncRun.id },
+        data: { outcome: 'TERMINAL_FAILURE', finishedAt: new Date(), errorMessage: error },
+      });
+      return { kind: 'TERMINAL_FAILURE', error };
+    }
+  }
+
+  const idempotencyKey = `event-${eventId}`;
+  runLog.info({ idempotencyKey }, 'delivering');
+
+  const result = await dest.connector.deliver(input, idempotencyKey);
 
   if (result.ok) {
     runLog.info('delivery succeeded');
-    await Promise.all([
-      prisma.syncRun.update({
-        where: { id: syncRun.id },
-        data: { outcome: 'SUCCEEDED', finishedAt: new Date() },
-      }),
-      prisma.ingestedEvent.update({
-        where: { id: eventId },
-        data: { status: 'SUCCEEDED', processedAt: new Date() },
-      }),
-    ]);
+    await prisma.syncRun.update({
+      where: { id: syncRun.id },
+      data: { outcome: 'SUCCEEDED', finishedAt: new Date() },
+    });
     return { kind: 'SUCCEEDED' };
   }
 
@@ -112,50 +217,5 @@ export async function processEvent(opts: ProcessEventOptions): Promise<ProcessOu
       errorMessage: result.error.message,
     },
   });
-  // Event status intentionally left for the dispatcher to set.
   return { kind: outcomeKind, error: result.error.message };
-}
-
-/**
- * Phase 6: prefer the active MappingConfig for (shopify, mock-erp) over the
- * hardcoded mapper. Falls back if no config is approved or if the stored spec
- * fails validation — so an AI-produced mapping never silently breaks deliveries.
- */
-async function resolveMockErpInput(opts: {
-  prisma: PrismaClient;
-  shopifyOrder: Parameters<typeof mapShopifyOrderToMockErp>[0];
-  log: Logger;
-}): Promise<MockErpOrderInput> {
-  const { prisma, shopifyOrder, log } = opts;
-
-  const config = await prisma.mappingConfig.findFirst({
-    where: {
-      sourceSystem: SHOPIFY_SOURCE,
-      destinationSystem: MOCK_ERP_DESTINATION,
-      isActive: true,
-    },
-    orderBy: { version: 'desc' },
-  });
-
-  if (!config) {
-    log.debug('no active MappingConfig — using hardcoded mapper');
-    return mapShopifyOrderToMockErp(shopifyOrder);
-  }
-
-  const specResult = mappingSpecSchema.safeParse(config.fields);
-  if (!specResult.success) {
-    log.warn(
-      { mappingConfigId: config.id, err: specResult.error.message },
-      'active MappingConfig.fields failed validation — falling back to hardcoded mapper',
-    );
-    return mapShopifyOrderToMockErp(shopifyOrder);
-  }
-
-  log.info(
-    { mappingConfigId: config.id, version: config.version },
-    'applying AI-approved mapping',
-  );
-  // The MappingSpec output is structurally unconstrained; trust the operator's
-  // approval (and let the connector + retry/DLQ layer catch any shape errors).
-  return applyMapping(shopifyOrder, specResult.data) as unknown as MockErpOrderInput;
 }

@@ -25,6 +25,7 @@ import {
 import { PrismaClient } from '@integr8/db';
 import {
   ControllableDestinationConnector,
+  type DestinationConnector,
   type MockErpOrderInput,
 } from '@integr8/connectors';
 import type { Queue, QueueJob } from '@integr8/queue';
@@ -152,7 +153,20 @@ suite('Phase 4 — reliability dispatcher', () => {
     destination: ControllableDestinationConnector<MockErpOrderInput>,
     queue: StubQueue,
   ) {
-    return { prisma, queue, destination, retryPolicy: fastPolicy, logger };
+    return {
+      prisma,
+      queue,
+      destinations: [
+        {
+          name: 'mock-erp',
+          connector: destination as DestinationConnector<unknown>,
+          // Identity-ish mapper — controllable connector doesn't inspect input.
+          hardcodedMapper: () => ({}) as unknown,
+        },
+      ],
+      retryPolicy: fastPolicy,
+      logger,
+    };
   }
 
   it('1. dedupes a re-delivered job after a prior SUCCEEDED SyncRun', async () => {

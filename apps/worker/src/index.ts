@@ -6,9 +6,17 @@ import {
 } from '@integr8/core';
 import { PrismaClient } from '@integr8/db';
 import { BullMQQueue } from '@integr8/queue';
-import { MockErpDestinationConnector } from '@integr8/connectors';
+import {
+  MockErpDestinationConnector,
+  StripeDestinationConnector,
+} from '@integr8/connectors';
 import { dispatch } from './dispatch.js';
+import type { DestinationSpec } from './process-event.js';
 import { DEFAULT_RETRY_POLICY } from './retry-policy.js';
+import {
+  mapShopifyOrderToMockErp,
+  mapShopifyOrderToStripe,
+} from './mapping.js';
 
 const env = loadEnv();
 const logger = createLogger(env, { app: 'worker' });
@@ -17,14 +25,33 @@ const queue = new BullMQQueue<SyncJobPayload>({
   queueName: SYNC_QUEUE_NAME,
   redisUrl: env.REDIS_URL,
 });
+
+// Mock ERP is always wired.
 const mockErp = new MockErpDestinationConnector({ baseUrl: env.MOCK_ERP_URL });
+const destinations: DestinationSpec[] = [
+  {
+    name: 'mock-erp',
+    connector: mockErp,
+    hardcodedMapper: mapShopifyOrderToMockErp,
+  },
+];
+
+// Stripe is conditional on STRIPE_TEST_KEY being present.
+if (env.STRIPE_TEST_KEY) {
+  const stripe = new StripeDestinationConnector({ apiKey: env.STRIPE_TEST_KEY });
+  destinations.push({
+    name: 'stripe',
+    connector: stripe,
+    hardcodedMapper: mapShopifyOrderToStripe,
+  });
+}
 
 const consumer = await queue.consume(async (job) => {
   await dispatch(
     {
       prisma,
       queue,
-      destination: mockErp,
+      destinations,
       retryPolicy: DEFAULT_RETRY_POLICY,
       logger,
     },
@@ -35,7 +62,9 @@ const consumer = await queue.consume(async (job) => {
 logger.info(
   {
     queue: SYNC_QUEUE_NAME,
+    destinations: destinations.map((d) => d.name),
     mockErpUrl: env.MOCK_ERP_URL,
+    stripeEnabled: Boolean(env.STRIPE_TEST_KEY),
     retryPolicy: DEFAULT_RETRY_POLICY,
   },
   'worker started — consuming sync queue with retry/DLQ enabled',

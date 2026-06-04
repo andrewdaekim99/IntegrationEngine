@@ -5,6 +5,60 @@ New entries go at the top.
 
 ---
 
+## 2026-06-03 — Phase 7 Stripe destination + multi-destination fan-out
+
+### D48. The Phase 7 constraint held: zero changes to packages/core or packages/queue
+
+`git status` after the Stripe connector + multi-destination dispatcher showed
+no diff in `packages/core` or `packages/queue`. Everything that needed to know
+about Stripe lived in `packages/connectors`, `apps/worker`, and the env loader.
+The Phase 1 `DestinationConnector` interface was the right shape.
+
+### D49. Multi-destination fan-out lives inside `processEvent`, not the dispatcher
+
+The dispatcher's job stays "decide what to do with this job (ack / nack /
+DLQ)" — single aggregate outcome. The fan-out (load event, for each
+destination resolve mapping + deliver + write SyncRun) is in `processEvent`.
+This keeps Phase 4's reliability core (`retry-policy.ts`, `routeToDeadLetter`)
+untouched and means a Phase 8 SQS swap doesn't need to know anything about
+destinations.
+
+### D50. Per-destination dedupe replaces Phase 4's top-level dedupe
+
+Phase 4 dedupe was "any SUCCEEDED SyncRun for this eventId → skip." That's
+wrong for multi-destination: if mock-erp succeeded but stripe failed, a
+redelivery should retry stripe, not skip the whole event. The replacement is
+inside `deliverToDestination`: "any SUCCEEDED SyncRun for this eventId **and
+this destination** → write a `DEDUPED` SyncRun for the current attempt and
+skip *that destination*." Aggregate is `DEDUPED` only when every destination
+was deduped (used by the dispatcher just for cleaner logging).
+
+### D51. Aggregate outcome: any TERMINAL → whole event DLQ
+
+If mock-erp succeeds but stripe terminally fails, the dispatcher routes the
+**whole event** to DLQ. The mock-erp success is preserved in the SyncRun
+table; a replay re-runs both destinations, and per-destination dedupe skips
+mock-erp on the retry. The alternative — a `PARTIAL_FAILURE` event status —
+would add complexity without a clear win at this scale.
+
+### D52. Stripe connector: form-encoded body + Idempotency-Key + 429-as-retryable
+
+Stripe's REST API takes `application/x-www-form-urlencoded`, not JSON
+(historical quirk). Nested values like `metadata` use bracket notation:
+`metadata[source_order_id]=...`. The connector encodes via `URLSearchParams`.
+Stripe also documents `429 Too Many Requests` for rate limits, which we map
+to `UpstreamServerError` (retryable) — its standard 4xx mapping would push
+rate-limit errors to terminal failure, which is wrong.
+
+### D53. Stripe destination conditional on `STRIPE_TEST_KEY`
+
+`apps/worker/src/index.ts` only adds Stripe to the destinations array when
+`env.STRIPE_TEST_KEY` is set. With no key, the worker runs single-destination
+(mock-erp only) and the architecture is identical. No env validation forces
+the key on; new contributors don't need a Stripe account to develop.
+
+---
+
 ## 2026-06-03 — Phase 6 AI Mapping Studio
 
 ### D42. JSON MappingSpec: `from` / `template` / `constant` + `arrays` section

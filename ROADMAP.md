@@ -371,30 +371,47 @@ point on the resume — build it on top of a working engine, not before one.
 
 ---
 
-## Phase 7 — Second destination: Stripe (test mode)
+## Phase 7 — Second destination: Stripe (test mode) ✅ COMPLETE
 
 **Goal:** Prove the connector abstraction by adding a second destination *without
 touching the engine core*. Short phase, high signal.
 
 ### Deliverables
-- [ ] `packages/connectors/stripe` — `DestinationConnector` against Stripe test mode
-      (payment / refund reconciliation events). Passes the destination conformance suite.
-- [ ] Routing: worker can dispatch an event to one or more destinations per
-      `MappingConfig`.
-- [ ] No changes to `packages/core` or `packages/queue`. **If you find yourself editing
-      either, the abstraction is wrong — fix that first.**
+- [x] `packages/connectors/src/stripe` — `StripeDestinationConnector` against
+      Stripe test mode (PaymentIntent creation, form-encoded body,
+      `Idempotency-Key` header). Maps 429 → retryable, 5xx → retryable,
+      4xx → terminal, fetch-throw → network. Passes the destination
+      conformance suite. 9 tests including request-shape assertions.
+- [x] Multi-destination fan-out inside `processEvent`: the worker holds a
+      `DestinationSpec[]` registry; each event is delivered to every
+      destination with per-destination dedupe. One SyncRun per
+      (event × destination × attempt). Aggregate outcome drives retry/DLQ
+      (whole event DLQs if any destination terminally fails; replay re-runs
+      all, dedupe skips ones that already succeeded).
+- [x] **No changes to `packages/core` or `packages/queue`.** ✅ `git status`
+      after the phase shows no diff in either — Phase 1's `DestinationConnector`
+      interface absorbed Stripe cleanly.
 
 ### Manual steps (you)
-- [ ] Create a **Stripe account** (free) at dashboard.stripe.com — no activation needed
-      to use test mode.
-- [ ] Make sure the dashboard toggle is on **Test mode**, then copy the **test secret
-      key** (`sk_test_...`) into `.env` as `STRIPE_TEST_KEY`.
-- [ ] *(Optional)* After a test run, open the Stripe test-mode dashboard to verify the
-      payment/refund record appeared as expected — useful screenshot for the README.
+- [x] **Stripe account** at dashboard.stripe.com, Test mode toggled on.
+- [x] **Test secret key** (`sk_test_…`) in `.env` as `STRIPE_TEST_KEY`. Worker
+      conditionally adds Stripe to the destinations array only when this is set.
+- [ ] *(Optional)* Open the Stripe test-mode dashboard → Payments to verify the
+      PaymentIntents created by the demo runs (search by metadata `source_order_id`).
+      Good screenshot fodder for the README.
+
+### Definition of done
+- Stripe adapter passes the destination conformance suite. ✅ (9 tests)
+- One Shopify webhook fans out to both Mock ERP and Stripe test mode. ✅
+  - Verified: event `7efb54c6-…` produced two SyncRun rows (`mock-erp
+    SUCCEEDED, stripe SUCCEEDED`); `IngestedEvent.status = SUCCEEDED`; MockErpOrder
+    row written with the engine's idempotency key; a Stripe PaymentIntent created
+    in test mode with `metadata[source_order_id]=…`.
 
 ### Demo
-- Same Shopify webhook fans out to both Mock ERP and Stripe test mode; both records
-  visible.
+- `pnpm dev:send-test-webhook --new` → both mock-erp and stripe SyncRuns appear
+  in `/events/[id]` on the dashboard. Stripe dashboard (test mode) shows the
+  matching PaymentIntent.
 
 ---
 
