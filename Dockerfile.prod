@@ -1,0 +1,37 @@
+# Production Dockerfile for ECS Fargate deployment (Phase 8).
+#
+# Differences from the dev Dockerfile:
+#   - NODE_ENV=production (pino flips to JSON output, no pretty-print).
+#   - Runs `pnpm start` instead of `pnpm dev` (no tsx watch — one process,
+#     SIGTERM-clean for Fargate).
+#   - Health check is configured on the ECS service / ALB target group, not
+#     as a HEALTHCHECK directive (Fargate doesn't honor those).
+#
+# Pass APP_NAME=api or APP_NAME=worker as a build arg.
+
+FROM node:20-alpine
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+WORKDIR /app
+
+ARG APP_NAME
+ENV APP_NAME=${APP_NAME}
+ENV NODE_ENV=production
+
+# Workspace manifest + lockfile + shared TS config.
+COPY pnpm-workspace.yaml package.json tsconfig.base.json ./
+COPY pnpm-lock.yaml* ./
+
+# Source — packages first for better layer caching.
+COPY packages ./packages
+COPY apps ./apps
+
+# Install everything. packages/db's postinstall runs `prisma generate` so the
+# client is ready at startup. tsx is in devDeps but is needed at runtime
+# because we don't compile to dist — pragmatic choice for the demo image
+# (~500MB vs ~200MB compiled). Optimization is a follow-up.
+RUN pnpm install --frozen-lockfile=false
+
+WORKDIR /app/apps/${APP_NAME}
+
+# Runs `tsx src/index.ts` per each app's package.json `start` script.
+CMD ["pnpm", "start"]

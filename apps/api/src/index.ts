@@ -4,13 +4,12 @@ import {
   loadEnv,
   createLogger,
   mappingSpecSchema,
-  SYNC_QUEUE_NAME,
   SHOPIFY_SOURCE,
   SHOPIFY_ORDERS_CREATE_TOPIC,
   type SyncJobPayload,
 } from '@integr8/core';
 import { PrismaClient, type Prisma } from '@integr8/db';
-import { BullMQQueue } from '@integr8/queue';
+import { makeQueue } from '@integr8/queue';
 import { ShopifyOrderConnector } from '@integr8/connectors';
 import { MappingProposer } from '@integr8/ai';
 
@@ -18,10 +17,7 @@ const env = loadEnv();
 const logger = createLogger(env, { app: 'api' });
 const prisma = new PrismaClient();
 
-const queue = new BullMQQueue<SyncJobPayload>({
-  queueName: SYNC_QUEUE_NAME,
-  redisUrl: env.REDIS_URL,
-});
+const queue = makeQueue<SyncJobPayload>(env);
 
 const shopify = new ShopifyOrderConnector({
   webhookSecret: env.SHOPIFY_WEBHOOK_SECRET ?? '',

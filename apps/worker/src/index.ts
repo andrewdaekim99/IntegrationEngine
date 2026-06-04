@@ -1,11 +1,10 @@
 import {
   loadEnv,
   createLogger,
-  SYNC_QUEUE_NAME,
   type SyncJobPayload,
 } from '@integr8/core';
 import { PrismaClient } from '@integr8/db';
-import { BullMQQueue } from '@integr8/queue';
+import { makeQueue } from '@integr8/queue';
 import {
   MockErpDestinationConnector,
   StripeDestinationConnector,
@@ -21,10 +20,7 @@ import {
 const env = loadEnv();
 const logger = createLogger(env, { app: 'worker' });
 const prisma = new PrismaClient();
-const queue = new BullMQQueue<SyncJobPayload>({
-  queueName: SYNC_QUEUE_NAME,
-  redisUrl: env.REDIS_URL,
-});
+const queue = makeQueue<SyncJobPayload>(env);
 
 // Mock ERP is always wired.
 const mockErp = new MockErpDestinationConnector({ baseUrl: env.MOCK_ERP_URL });
@@ -61,7 +57,7 @@ const consumer = await queue.consume(async (job) => {
 
 logger.info(
   {
-    queue: SYNC_QUEUE_NAME,
+    queueDriver: env.QUEUE_DRIVER,
     destinations: destinations.map((d) => d.name),
     mockErpUrl: env.MOCK_ERP_URL,
     stripeEnabled: Boolean(env.STRIPE_TEST_KEY),

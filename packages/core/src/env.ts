@@ -24,6 +24,8 @@ const envSchema = z.object({
 
   AWS_REGION: z.string().optional(),
   SQS_QUEUE_URL: z.string().optional(),
+  /** SQS dead-letter queue URL. Required when QUEUE_DRIVER=sqs. */
+  SQS_DLQ_URL: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -434,26 +434,95 @@ docker-compose is the daily driver.
 
 ### Manual steps (you)
 This phase has the most user-only steps in the whole project. **Plan ~half a day** and
-do it in one sitting so resources don't sit idle billing.
+do it in one sitting so resources don't sit idle billing. Per `PROJECT_DIRECTION.md`
+§5 this is *intentionally* a one-shot demo + screenshots, then teardown — the MVP
+runs locally via `docker compose`. Phase 8 produces three durable artifacts: the
+`packages/queue/sqs` adapter (code), `infra/README.md` (runbook), and the README
+screenshots.
 
-- [ ] Create an **AWS account** (or pick an existing one) and enable **MFA on the root user**.
-- [ ] Create a dedicated **IAM user** (or IAM Identity Center user) with programmatic
-      access and only the permissions this phase needs (ECR push, ECS, SQS, RDS, ALB,
-      CloudWatch). Do **not** use root credentials for deploys.
-- [ ] Install and configure the **AWS CLI**: `aws configure` (interactive — Claude
-      can't run this for you). If using SSO, run `aws sso login`.
-- [ ] Set a **billing alert** in AWS Budgets (e.g. $5/mo) so you find out before a
-      forgotten resource costs real money.
-- [ ] Decide on a **region** (e.g. `us-east-1`) and stick with it for every resource.
-- [ ] Approve any one-time resource creations Claude proposes (ECR repo, RDS instance,
-      ECS cluster, ALB, SQS queue). Manual web-console clicks may be faster than CLI for
-      one-shot setup — that's fine, document them in `infra/README.md` as you go.
-- [ ] **Take screenshots** for the README: ECS service running, CloudWatch logs of a
-      real webhook, RDS row inserted, SQS queue metrics.
-- [ ] **Run the teardown checklist** when the demo is captured: stop ECS services,
-      delete ALB + target groups, delete RDS instance (snapshot first if you want),
-      delete SQS queue, delete CloudWatch log groups, delete ECR images. Verify the
-      AWS Cost Explorer shows no ongoing charges 24h later.
+#### Pre-flight setup (do before Claude starts any `aws` work)
+
+Everything below gates Claude from running CLI commands against AWS. Roughly
+30–60 minutes of clicking around the console + terminal setup, one-time.
+
+- [ ] **AWS account.** Sign up at <https://aws.amazon.com> (credit card required;
+      no charges if you stay in free tier). For a portfolio demo, prefer a **fresh
+      account** rather than mixing demo resources into one you use for work — the
+      teardown is unambiguous and you can close the account afterward.
+- [ ] **MFA on the root user.** AWS Console → top-right name dropdown → Security
+      credentials → Multi-factor authentication → Assign MFA device. Use an
+      authenticator app (Authy / 1Password / iOS Passwords). Non-negotiable — an
+      unauthenticated root key is a real liability.
+- [ ] **Dedicated IAM user with programmatic access.**
+      Console → IAM → Users → Create user. For a same-day-teardown demo,
+      `AdministratorAccess` is pragmatic and avoids permission-debugging hell
+      (you'll delete the user as part of teardown). If you want least-privilege:
+      ECR + ECS + RDS + SQS + ELB + CloudWatch Logs + IAM (for task roles).
+      Create access key (CLI access). **Download the CSV** — secret key is shown
+      once and never again.
+- [ ] **AWS CLI v2 installed locally.** `brew install awscli`, then verify with
+      `aws --version` (should print `aws-cli/2.x.x`).
+- [ ] **`aws configure`** in your terminal. Paste:
+      - AWS Access Key ID (from the CSV)
+      - AWS Secret Access Key (from the CSV)
+      - Default region: `us-east-1` (or your choice)
+      - Default output format: `json`
+      Claude can't run this (interactive prompt); you do it once in your shell
+      and Claude's `Bash` calls inherit the credentials.
+- [ ] **Verify**: `aws sts get-caller-identity` — should print your account ID
+      and the IAM user's ARN. If you see "Unable to locate credentials" or an
+      error, fix before proceeding.
+- [ ] **$5 monthly AWS Budget alert with email.** Console → Billing → Budgets →
+      Create budget → Cost budget → period: Monthly → amount: $5 → email alert
+      at 80% and 100%. **Most important defensive step** against forgotten
+      resources. If you ignore everything else on this list, do this.
+
+#### Decisions to make upfront
+
+- [ ] **Region**: `us-east-1` is the cheapest, biggest, default — fine unless
+      you want lower latency for your specific location.
+- [ ] **Where the secrets live**: `SHOPIFY_WEBHOOK_SECRET`, `ANTHROPIC_API_KEY`,
+      `STRIPE_TEST_KEY` need to reach the ECS tasks. Three options, easiest
+      first:
+      1. Plain task-definition env vars (easiest, fine because everything's
+         test-mode credentials).
+      2. Systems Manager Parameter Store (free, slight extra wiring).
+      3. AWS Secrets Manager (most "production-shaped", $0.40/secret/month).
+- [ ] **What stays local vs goes to AWS**: per ROADMAP, only `apps/api` and
+      `apps/worker` deploy. `apps/mock-erp` stays local (it's a stub — in real
+      production you'd hit a real ERP), `apps/dashboard` stays local pointing
+      at the AWS API URL.
+
+#### During the deploy (Claude drives, you approve)
+
+- [ ] Approve any one-time resource creations Claude proposes (ECR repo, RDS
+      instance, ECS cluster, ALB, SQS queue). Manual web-console clicks may be
+      faster than CLI for one-shot setup — that's fine, document them in
+      `infra/README.md` as you go.
+
+#### Demo + screenshots
+
+- [ ] **Take screenshots** for the README:
+      - ECS service running (1+ task in RUNNING state)
+      - CloudWatch logs of a real webhook flowing through
+      - RDS row inserted (Postgres Query Editor in the RDS console, or psql via
+        a bastion)
+      - SQS queue metrics (ApproximateNumberOfMessagesReceived spiking when the
+        webhook fires)
+      - Stripe test-mode dashboard showing the PaymentIntent the Fargate worker created
+
+#### Teardown (when the demo is captured)
+
+- [ ] Stop ECS services (`aws ecs update-service --desired-count 0`)
+- [ ] Delete ALB + target groups (Console → EC2 → Load Balancers)
+- [ ] Delete RDS instance (snapshot first if you want; "Delete final snapshot"
+      to skip if you don't)
+- [ ] Delete SQS main + DLQ queues
+- [ ] Delete CloudWatch log groups (saves nothing significant, but tidy)
+- [ ] Delete ECR images (Console → ECR → Repositories → select → Delete)
+- [ ] Delete the IAM user + access keys
+- [ ] **Verify Cost Explorer shows no ongoing charges 24h later**.
+- [ ] (Optional) Close the AWS account if you created a fresh one just for this.
 
 ### Definition of done
 - One Shopify webhook delivered to the AWS-hosted endpoint flows end-to-end and lands

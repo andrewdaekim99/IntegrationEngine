@@ -89,9 +89,10 @@ suite('Phase 3 — Shopify webhook → Mock ERP happy path', () => {
       return event?.status === 'SUCCEEDED';
     });
 
-    // SyncRun row reflects success
+    // SyncRun row reflects success. Phase 7+ may write multiple SyncRuns
+    // (mock-erp + stripe when STRIPE_TEST_KEY is set), so scope to mock-erp.
     const syncRun = await prisma.syncRun.findFirst({
-      where: { eventId },
+      where: { eventId, destination: 'mock-erp' },
       orderBy: { startedAt: 'desc' },
     });
     expect(syncRun).toBeTruthy();
