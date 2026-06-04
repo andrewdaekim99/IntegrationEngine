@@ -15,6 +15,8 @@ const envSchema = z.object({
 
   SHOPIFY_WEBHOOK_SECRET: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
+  /** Model id for the AI Mapping Studio. Defaults to Opus 4.7. */
+  ANTHROPIC_MODEL: z.string().default('claude-opus-4-7'),
   STRIPE_TEST_KEY: z.string().optional(),
 
   /** Worker-only: the HTTP base URL for the Mock ERP destination connector. */

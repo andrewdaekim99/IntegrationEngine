@@ -5,6 +5,62 @@ New entries go at the top.
 
 ---
 
+## 2026-06-03 — Phase 6 AI Mapping Studio
+
+### D42. JSON MappingSpec: `from` / `template` / `constant` + `arrays` section
+
+The mapping format is plain JSON, editable in a textarea, validated by the same
+zod schema everywhere (proposer output, API request body, DB column). Each scalar
+field picks exactly one of `from` (direct copy), `template` (`{path}` placeholders
+for concatenation), or `constant` (literal). `fallbackFrom` handles
+"use X, or Y if null". A separate `arrays` section iterates source arrays.
+Trade-off: doesn't cover every conceivable transformation (no map/filter/case
+logic) — the hardcoded fallback handles those for now; we'd extend the spec or
+add a JS-eval escape hatch later if the connector library grows.
+
+### D43. Anthropic SDK with `cache_control` on the system prompt
+
+The system prompt is stable byte-for-byte; the marker is on the system block so
+caching activates once we add examples and push past Opus 4.7's 4096-token
+minimum cacheable prefix. Today the prompt is ~700 tokens and won't cache, but
+the architecture is correct — no rework needed when the prompt grows.
+
+### D44. Lazy `MappingProposer` init: missing key = 503, not startup crash
+
+`packages/ai`'s `MappingProposer` is only constructed if `ANTHROPIC_API_KEY` is
+set. The API still starts without a key; the `POST /mappings/proposals` route
+returns 503 with a clear "set ANTHROPIC_API_KEY and recreate the api container"
+message. Lets the rest of the system run for reviewers who don't want to sign up
+for an Anthropic account just to look at the dashboard.
+
+### D45. Worker prefers active MappingConfig, falls back to hardcoded mapper
+
+`resolveMockErpInput` in `apps/worker/src/process-event.ts` looks up the active
+`MappingConfig` for `(shopify, mock-erp)`; if found, applies `applyMapping`; if
+not found OR the stored `fields` JSON fails `mappingSpecSchema` validation,
+falls back to `mapShopifyOrderToMockErp`. Always-on safety net: an AI mistake
+in the DB can't break delivery, only degrade to the known-good behavior.
+
+### D46. `POST /mappings` is transactional: deactivate prior + insert new in one tx
+
+When activating a new version, we wrap "set prior active=false" and "insert new
+with isActive=true" in a single Prisma transaction. The worker's lookup is
+`findFirst({ isActive: true })` — without the transaction, a concurrent worker
+read between the two writes could find zero or two active mappings. With it,
+the switch is atomic.
+
+### D47. Adaptive thinking off by default — structured extraction, not deep reasoning
+
+The skill recommends adaptive thinking for "anything remotely complicated", but
+proposing a mapping is a structured-extraction task: small payloads, clear
+patterns, deterministic output schema. Thinking adds latency + tokens with
+marginal quality lift here. The note in `mapping-proposer.ts` says when to flip
+it back on (proposal quality drops on complex sources). The SDK version we
+pinned (`^0.40`) doesn't type the `adaptive` variant anyway — switching it on
+needs an SDK bump alongside.
+
+---
+
 ## 2026-06-03 — Phase 5 dashboard
 
 ### D37. Next.js App Router + server components for all data fetching

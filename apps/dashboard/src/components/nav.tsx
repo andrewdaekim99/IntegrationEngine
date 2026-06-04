@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Activity, Skull } from 'lucide-react';
+import { Activity, Skull, Wand2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const links = [
   { href: '/events', label: 'Sync feed', icon: Activity },
   { href: '/dlq', label: 'Dead letter queue', icon: Skull },
+  { href: '/mappings', label: 'Mapping studio', icon: Wand2 },
 ] as const;
 
 export function Nav() {

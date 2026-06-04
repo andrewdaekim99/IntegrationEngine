@@ -106,3 +106,55 @@ export interface DlqListResponse {
   limit: number;
   offset: number;
 }
+
+// ---------------------------------------------------------------------------
+// Mapping Studio (Phase 6).
+// ---------------------------------------------------------------------------
+
+export type Confidence = 'high' | 'medium' | 'low';
+
+export interface FieldMappingProposal {
+  to: string;
+  from?: string;
+  template?: string;
+  constant?: string | number | boolean | null;
+  fallbackFrom?: string[];
+  rationale?: string;
+  confidence?: Confidence;
+}
+
+export interface ArrayMappingProposal {
+  to: string;
+  from: string;
+  fields: Array<{
+    to: string;
+    from?: string;
+    template?: string;
+    constant?: string | number | boolean | null;
+  }>;
+}
+
+export interface MappingSpecProposal {
+  fields: FieldMappingProposal[];
+  arrays?: ArrayMappingProposal[];
+  notes?: string;
+}
+
+export interface MappingConfigRow {
+  id: string;
+  sourceSystem: string;
+  destinationSystem: string;
+  version: number;
+  fields: MappingSpecProposal;
+  isActive: boolean;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  createdAt: string;
+}
+
+export interface MappingsListResponse {
+  mappings: MappingConfigRow[];
+  total: number;
+  limit: number;
+  offset: number;
+}

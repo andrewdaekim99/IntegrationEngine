@@ -312,51 +312,62 @@ they see.
 
 ---
 
-## Phase 6 — AI Mapping Studio (the differentiator)
+## Phase 6 — AI Mapping Studio (the differentiator) ✅ COMPLETE
 
 **Goal:** Replace the hard-coded mapping from Phase 3 with a Claude-proposed,
 human-approved `MappingConfig` row that the worker consumes. This is the AI talking
 point on the resume — build it on top of a working engine, not before one.
 
 ### Deliverables
-- [ ] `packages/ai` — Anthropic client wrapper. Key reads from env, **server-side only**.
-- [ ] Worker change: load the active `MappingConfig` row for `(source, destination)`
-      and use it to transform the payload. (Fall back to the Phase 3 hard-coded mapping
-      if none is approved — keeps the system runnable.)
-- [ ] Mapping Studio UI in `apps/dashboard`:
-  1. paste/upload source and destination schemas (or two sample payloads),
-  2. Claude proposes a JSON mapping with rationale + confidence per field,
-  3. operator edits/approves,
-  4. save as a new `MappingConfig` version; mark it active.
-- [ ] Snapshot tests for the prompt + parser (no live API calls in tests — fixture-driven
-      with a mocked Anthropic client).
-- [ ] *(Optional within this phase)* DLQ triage: button on a DLQ item that asks Claude
-      to summarize the likely cause and suggested fix.
+- [x] `packages/ai` — Anthropic SDK wrapper (`MappingProposer`). Key read from
+      `ANTHROPIC_API_KEY` env var server-side only; `cache_control: ephemeral` on
+      the system prompt; default model `claude-opus-4-7` (overridable via `ANTHROPIC_MODEL`).
+- [x] `packages/core/src/mapping-spec.ts` — JSON `MappingSpec` format
+      (`from`/`template`/`constant`/`fallbackFrom` + `arrays`), zod schema with
+      refinements, pure `applyMapping` function. 16 unit tests.
+- [x] Worker change in `resolveMockErpInput`: look up active `MappingConfig`,
+      apply via `applyMapping`; fall back to `mapShopifyOrderToMockErp` if no
+      config or if stored spec fails validation (safety net against a bad AI write).
+- [x] Mapping Studio UI in `apps/dashboard`:
+  1. Paste source + destination samples (pre-filled with Shopify + MockErp defaults).
+  2. **Propose with Claude** → loading state → editable per-field card view +
+     editable JSON spec, rationale + confidence badges per field.
+  3. **Save & activate** → transactional create + deactivate-prior in one tx.
+  4. `/mappings` lists every version with per-row Activate buttons.
+- [x] Snapshot tests for the prompt + parser (6 fixtures, mocked SDK client) +
+      round-trip test: proposal → applyMapping on real Shopify order produces
+      the expected MockErp shape.
+- [ ] *(Deferred — optional within this phase)* DLQ triage with Claude. Skipped
+      for now; can layer onto the existing `/dlq/:id` page later.
 
 ### Manual steps (you)
-- [ ] Create an account at **console.anthropic.com** if you don't have one and add at
-      least the minimum credit.
-- [ ] Generate an **API key** and paste it into `.env` as `ANTHROPIC_API_KEY`. Do **not**
-      commit it. Confirm it does not leak into the Next.js client bundle (it should be
-      read only from server-side code).
-- [ ] Decide on a default model id (e.g. `claude-opus-4-7` or `claude-sonnet-4-6`) and
-      tell Claude which to wire as the default.
-- [ ] Act as the **human-in-the-loop reviewer** during the demo: paste sample payloads,
-      look at the proposed mapping + per-field rationale, edit anything obviously wrong,
-      approve. The point of this feature is *your* judgment is in the loop.
-- [ ] *(Recommended)* Set a monthly Anthropic spend cap in the console while iterating.
-- [ ] *(Optional)* Screen-record the proposal → edit → approve → next-webhook-uses-it
+- [x] Anthropic account + credit at **console.anthropic.com**.
+- [x] **API key** generated and pasted into `.env` as `ANTHROPIC_API_KEY`. Verified
+      server-side only — the dashboard reaches Claude through the API, never directly.
+- [x] Default model id: `claude-opus-4-7` (overridable via `ANTHROPIC_MODEL`).
+- [x] Acted as the human-in-the-loop: triggered a propose, reviewed Claude's
+      output, saved + activated, watched the next webhook be processed with
+      `mappingConfigId: 2cae1f07-…` in the worker logs.
+- [ ] *(Recommended)* Set a monthly Anthropic spend cap in the console.
+- [ ] *(Optional)* Screen-record the propose → edit → approve → next-webhook-uses-it
       flow for the README.
 
 ### Definition of done
-- A user can complete: paste sample payloads → review Claude's proposal → edit one
-  field → approve → see the next inbound event use the new mapping (visible in the
-  event-detail page).
-- No Anthropic key ever appears in the dashboard bundle.
+- A user can complete propose → review → edit → approve → see the next inbound
+  event use the new mapping. ✅
+  - Verified end-to-end: real Anthropic API call returned a 5-field + 1-array
+    mapping; saved as v1; next `dev:send-test-webhook` ran with the new mapping
+    (`worker-1 INFO applying AI-approved mapping mappingConfigId=2cae1f07-…`).
+- No Anthropic key in the dashboard bundle. ✅ — all Anthropic calls go through
+  `apps/api`; dashboard uses a Server Action that hits `POST /mappings/proposals`.
+- All tests green (90 across 17 files including the 6 new mapping-proposer tests + 16 MappingSpec tests).
 
 ### Demo
-- Screen recording: a mapping is proposed, edited, approved, and the very next webhook
-  is processed using it.
+- Open <http://localhost:3003/mappings/new>. Paste samples (or use the defaults).
+  Click **Propose with Claude** → ~5-10s later see the proposal with per-field
+  cards. Edit the JSON if you want. Click **Save & activate**. Then fire a
+  webhook (`pnpm dev:send-test-webhook --new` or place a real Shopify order) —
+  the worker logs `applying AI-approved mapping` and the SyncRun succeeds.
 
 ---
 
