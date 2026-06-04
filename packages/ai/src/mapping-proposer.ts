@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { mappingSpecSchema, type MappingSpec } from '@integr8/core';
 import { MAPPING_SYSTEM_PROMPT } from './prompts.js';
 
-export const DEFAULT_MODEL = 'claude-opus-4-7';
+export const DEFAULT_MODEL = 'claude-sonnet-4-6';
 
 /**
  * A MappingProposal is a MappingSpec with an optional top-level `notes` from
@@ -19,7 +19,7 @@ export type MappingProposal = z.infer<typeof proposalSchema>;
 
 export interface MappingProposerOptions {
   apiKey: string;
-  /** Override the model id (defaults to claude-opus-4-7). */
+  /** Override the model id (defaults to claude-sonnet-4-6). */
   model?: string;
   /** DI hook for tests — pass a stub instead of constructing an Anthropic client. */
   client?: Anthropic;
