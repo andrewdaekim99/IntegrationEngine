@@ -34,6 +34,7 @@ functional yet — just the rails everything else will run on.
 This phase is deliberately heavy because every shortcut here costs 10x later.
 
 ### Deliverables
+
 - [x] `pnpm` workspace root with `apps/*` and `packages/*` per `CLAUDE.md` §Repo structure.
 - [x] Root `tsconfig.base.json` with `strict: true`, `noImplicitAny`, `noUncheckedIndexedAccess`;
       per-package `tsconfig.json` extending the base.
@@ -53,6 +54,7 @@ This phase is deliberately heavy because every shortcut here costs 10x later.
 - [x] `.gitignore` covering `.env`, `node_modules`, `dist`, Prisma client, build outputs.
 
 ### Manual steps (you)
+
 - [x] Install **Node 20+** (you had Node 22 already).
 - [x] Install **pnpm** globally (via corepack).
 - [x] Install **Docker Desktop** and confirm `docker` + `docker compose` work.
@@ -62,11 +64,13 @@ This phase is deliberately heavy because every shortcut here costs 10x later.
 - [x] Copy `.env.example` to `.env` so docker-compose can boot.
 
 ### Definition of done
+
 - Cold clone → `pnpm install` → `cp .env.example .env` → `docker-compose up` boots the
   full stack with no errors. ✅
 - `pnpm test`, `pnpm typecheck`, `pnpm lint` all green. ✅
 
 ### Demo
+
 - Terminal: `docker-compose up` shows all six services running.
 - API healthcheck: `curl localhost:3010/healthz` → `{"ok":true,"service":"api"}`.
 - Mock ERP healthcheck: `curl localhost:3002/healthz` → `{"ok":true,"service":"mock-erp"}`.
@@ -81,6 +85,7 @@ logic yet — just types, schemas, and interfaces. **This is the phase that dete
 whether the connector + queue abstractions actually pay off later.**
 
 ### Deliverables
+
 - [x] Prisma schema for the persistence model:
   - `IngestedEvent` (id, source, externalId, topic, rawPayload jsonb, signatureVerified,
     receivedAt, processedAt nullable, status enum).
@@ -96,18 +101,19 @@ whether the connector + queue abstractions actually pay off later.**
       typed error hierarchy (`IntegrationError` → `RetryableError` / `TerminalError`).
 - [x] `packages/queue` — `Queue<T>` interface (`enqueue`, `consume`, `ack`, `nack`,
       `moveToDLQ`, `listDeadLetters`, `replayDeadLetter`, `close`) + `InMemoryQueue` impl.
-- [x] `packages/connectors` — `SourceConnector` + `DestinationConnector` interfaces
-      + `NoopSourceConnector` + `NoopDestinationConnector` (recording) fakes.
+- [x] `packages/connectors` — `SourceConnector` + `DestinationConnector` interfaces + `NoopSourceConnector` + `NoopDestinationConnector` (recording) fakes.
 - [x] Vitest contract tests: `runQueueConformance`, `runSourceConformance`,
       `runDestinationConformance` exported from each package's `./conformance` subpath.
       24 tests passing total.
 
 ### Definition of done
+
 - Migrations apply cleanly on a fresh DB. ✅
 - Contract tests pass against the in-memory fakes (24/24). ✅
 - No concrete provider (BullMQ, Shopify) imported anywhere in `packages/core`. ✅
 
 ### Demo
+
 - `pnpm test` shows 6 test files / 24 tests passing — queue + connector conformance
   suites both green against their respective noop/in-memory fakes.
 
@@ -120,6 +126,7 @@ the same conformance suite. Still no end-to-end flow — we're proving the abstr
 work with one real provider each before wiring the engine together.
 
 ### Deliverables
+
 - [x] `packages/queue/bullmq.ts` — BullMQ + Redis implementation of `Queue<T>`. Bridges
       BullMQ's auto-ack to explicit ack/nack/moveToDLQ via per-job decision promises.
       Separate `${queueName}-dlq` Bull queue for the DLQ. Passes the Phase 1 conformance
@@ -136,12 +143,14 @@ work with one real provider each before wiring the engine together.
 - [x] `docker-compose.yml` already mounts mock-erp; image rebuilt with the new endpoint.
 
 ### Definition of done
+
 - BullMQ adapter passes the same conformance suite the in-memory fake did. ✅ (5/5)
 - Mock ERP destination connector round-trips a synthetic payload via mocked fetch
-  + curl-verified end-to-end against the live container. ✅
+  - curl-verified end-to-end against the live container. ✅
 - Shopify HMAC verifier rejects a tampered fixture and accepts a known-good one. ✅
 
 ### Demo
+
 - `pnpm test` → 45 tests across 9 files, all green.
 - Live: `curl -X POST http://localhost:3002/orders -H 'Idempotency-Key: k1' -d '{}'`
   returns 201 on first call, 200 + same row on the second.
@@ -154,6 +163,7 @@ work with one real provider each before wiring the engine together.
 No reliability features yet (no retry, no DLQ) — just prove the pipe is connected.
 
 ### Deliverables
+
 - [x] `apps/api` — Fastify server with `POST /webhooks/shopify/orders`:
   1. verify HMAC (custom JSON parser keeps raw body),
   2. persist raw `IngestedEvent` (status = `RECEIVED`); composite-unique key handles dedupe,
@@ -173,6 +183,7 @@ No reliability features yet (no retry, no DLQ) — just prove the pipe is connec
 - [x] `pnpm dev:send-test-webhook` script signs the bundled fixture and posts to local API.
 
 ### Manual steps (you)
+
 - [x] Create a **Shopify Partners account** (free) at partners.shopify.com.
 - [x] Create a **development store** under that Partners account (free, no card).
 - [x] Add a sample product and a test customer to the dev store so orders can be placed.
@@ -184,18 +195,20 @@ No reliability features yet (no retry, no DLQ) — just prove the pipe is connec
 - [x] Copy the **webhook signing secret** Shopify shows you into `.env` as
       `SHOPIFY_WEBHOOK_SECRET`; then `docker compose up -d --force-recreate api`
       to actually reload the env (`restart` does NOT re-read env_file).
-- [x] Trigger a real Shopify webhook (via *Send test notification* button on the
+- [x] Trigger a real Shopify webhook (via _Send test notification_ button on the
       Webhooks page) — HMAC verifies, worker delivers, mock-erp row written.
-- [ ] *(Optional)* Save 1–2 real webhook payloads as fixtures in
+- [ ] _(Optional)_ Save 1–2 real webhook payloads as fixtures in
       `packages/connectors/src/shopify/__fixtures__/` so future tests don't need the tunnel.
 
 ### Definition of done
+
 - End-to-end test green. ✅ (46/46 tests passing including the integration test)
 - Logs from a real local run clearly show the event id flowing through API → queue → worker → ERP. ✅
   - Same `eventId` appears in `api-1` "shopify webhook ingested + enqueued" and
     `worker-1` "delivery succeeded" / "event completed".
 
 ### Demo
+
 - Terminal: `docker compose logs -f api worker`, then `pnpm dev:send-test-webhook` —
   webhook in → worker logs `outcome: SUCCEEDED` → row appears in `mock_erp_order` table.
 
@@ -204,10 +217,11 @@ No reliability features yet (no retry, no DLQ) — just prove the pipe is connec
 ## Phase 4 — Reliability core (THE HEADLINE) ✅ COMPLETE
 
 **Goal:** Idempotency, retry-with-backoff, DLQ, and manual replay — all with tests.
-Per `CLAUDE.md` §7: *"reliability paths must have tests. They are the headline feature."*
+Per `CLAUDE.md` §7: _"reliability paths must have tests. They are the headline feature."_
 **Nothing in later phases is more important than this phase being rock-solid.**
 
 ### Deliverables
+
 - [x] **Consumer-side dedupe** in `dispatch()`: if any prior SUCCEEDED `SyncRun` exists
       for the eventId, a new delivery writes a `DEDUPED` SyncRun and acks — no
       destination call. Catches at-least-once redelivery, accidental double-enqueue,
@@ -231,17 +245,19 @@ Per `CLAUDE.md` §7: *"reliability paths must have tests. They are the headline 
       Postgres-as-source-of-truth, and the test-isolation choice.
 
 ### Manual steps (you)
+
 - [x] Run the **forced-failure walkthrough by hand** at least once. ✅ Driven via
       `docker compose stop mock-erp` → `pnpm dev:send-test-webhook -- --new` →
       5 retries with backoff → `DeadLetterItem` written → `docker compose start mock-erp`
       → `curl -X POST localhost:3010/dlq/<id>/replay` → DLQ resolved + event SUCCEEDED.
 - [ ] **Record the headline GIF** of that walkthrough — single most important visual
-      for the README. Tools: macOS built-in screen recording, Kap, or Cleanshot. *(Can
+      for the README. Tools: macOS built-in screen recording, Kap, or Cleanshot. _(Can
       be deferred until Phase 5 when the dashboard exists — re-recording then will
-      show the DLQ list + replay button visually instead of curl.)*
+      show the DLQ list + replay button visually instead of curl.)_
 - [ ] Save the recording into `docs/`.
 
 ### Definition of done
+
 - All reliability tests green: 6 dispatcher scenarios + 6 retry-policy unit tests. ✅
   Total suite: 58 tests across 12 files, all passing.
 - A forced-failure manual run (kill Mock ERP, send a webhook, see 5 retries +
@@ -250,6 +266,7 @@ Per `CLAUDE.md` §7: *"reliability paths must have tests. They are the headline 
   RETRYING (×5) → DEAD_LETTERED → SUCCEEDED + DLQ resolved.
 
 ### Demo
+
 - Default policy demo schedule (delays before retry 2..5): 1s, 2s, 4s, 8s — total
   ~15s to exhaust retries.
 - Final state for the verified run: 5 SyncRun(RETRYABLE_FAILURE) + 1 SyncRun(SUCCEEDED),
@@ -261,10 +278,11 @@ Per `CLAUDE.md` §7: *"reliability paths must have tests. They are the headline 
 ## Phase 5 — Dashboard (Next.js) ✅ CODE COMPLETE, awaiting visual review
 
 **Goal:** Operator-facing UI for monitoring and acting on the engine. Should make the
-reliability features from Phase 4 *visible*, because reviewers will judge them by what
+reliability features from Phase 4 _visible_, because reviewers will judge them by what
 they see.
 
 ### Deliverables
+
 - [x] `apps/dashboard` — Next.js 15 App Router + Tailwind + shadcn/ui (Button, Badge,
       Table, Card, Input, Skeleton in `src/components/ui/`).
 - [x] REST endpoints in `apps/api`:
@@ -281,30 +299,33 @@ they see.
     `router.refresh()`) on unresolved rows.
 - [x] Empty / loading / error states for every page.
 - [x] Vitest + React Testing Library (jsdom env) smoke tests:
-  `EventStatusBadge` / `SyncRunOutcomeBadge` rendering + `ReplayButton` click
-  fires the action + surfaces errors. 4 dashboard tests across 2 files.
+      `EventStatusBadge` / `SyncRunOutcomeBadge` rendering + `ReplayButton` click
+      fires the action + surfaces errors. 4 dashboard tests across 2 files.
 
 ### Manual steps (you)
+
 - [ ] **Visually review** each page in the browser:
   - <http://localhost:3003/events>
   - <http://localhost:3003/events/[any-id]>
   - <http://localhost:3003/dlq> — has one unresolved item ready for **Replay**.
-  Look for: spacing, status badge contrast, empty-state copy, mobile-width layout.
+    Look for: spacing, status badge contrast, empty-state copy, mobile-width layout.
 - [ ] **Click Replay** on the DLQ row — watch the page refresh and the row move to
       the "Resolved" section after the worker finishes.
 - [ ] Give feedback on copy / spacing / hierarchy before screenshots are taken — UI
       judgment calls should be yours, not Claude's.
 - [ ] **Capture screenshots** of the three core pages for the README.
-- [ ] *(Optional)* Record the headline GIF against the dashboard now that the DLQ +
+- [ ] _(Optional)_ Record the headline GIF against the dashboard now that the DLQ +
       replay flow has a real UI.
 
 ### Definition of done
+
 - All three pages render real data from a populated local DB. ✅
 - The replay button on the DLQ page actually re-runs an event end-to-end. ✅
   (`POST /dlq/:id/replay` returns 202, worker picks up, marks resolved on success.)
 - 62 tests across 14 files passing.
 
 ### Demo
+
 - Open <http://localhost:3003/dlq> — one unresolved item from a forced mock-erp
   failure. Click **Replay** — row moves to resolved section after the worker
   succeeds. Click the external id on either side → /events/[id] shows the full
@@ -319,6 +340,7 @@ human-approved `MappingConfig` row that the worker consumes. This is the AI talk
 point on the resume — build it on top of a working engine, not before one.
 
 ### Deliverables
+
 - [x] `packages/ai` — Anthropic SDK wrapper (`MappingProposer`). Key read from
       `ANTHROPIC_API_KEY` env var server-side only; `cache_control: ephemeral` on
       the system prompt; default model `claude-opus-4-7` (overridable via `ANTHROPIC_MODEL`).
@@ -337,10 +359,11 @@ point on the resume — build it on top of a working engine, not before one.
 - [x] Snapshot tests for the prompt + parser (6 fixtures, mocked SDK client) +
       round-trip test: proposal → applyMapping on real Shopify order produces
       the expected MockErp shape.
-- [ ] *(Deferred — optional within this phase)* DLQ triage with Claude. Skipped
+- [ ] _(Deferred — optional within this phase)_ DLQ triage with Claude. Skipped
       for now; can layer onto the existing `/dlq/:id` page later.
 
 ### Manual steps (you)
+
 - [x] Anthropic account + credit at **console.anthropic.com**.
 - [x] **API key** generated and pasted into `.env` as `ANTHROPIC_API_KEY`. Verified
       server-side only — the dashboard reaches Claude through the API, never directly.
@@ -348,11 +371,12 @@ point on the resume — build it on top of a working engine, not before one.
 - [x] Acted as the human-in-the-loop: triggered a propose, reviewed Claude's
       output, saved + activated, watched the next webhook be processed with
       `mappingConfigId: 2cae1f07-…` in the worker logs.
-- [ ] *(Recommended)* Set a monthly Anthropic spend cap in the console.
-- [ ] *(Optional)* Screen-record the propose → edit → approve → next-webhook-uses-it
+- [ ] _(Recommended)_ Set a monthly Anthropic spend cap in the console.
+- [ ] _(Optional)_ Screen-record the propose → edit → approve → next-webhook-uses-it
       flow for the README.
 
 ### Definition of done
+
 - A user can complete propose → review → edit → approve → see the next inbound
   event use the new mapping. ✅
   - Verified end-to-end: real Anthropic API call returned a 5-field + 1-array
@@ -363,6 +387,7 @@ point on the resume — build it on top of a working engine, not before one.
 - All tests green (90 across 17 files including the 6 new mapping-proposer tests + 16 MappingSpec tests).
 
 ### Demo
+
 - Open <http://localhost:3003/mappings/new>. Paste samples (or use the defaults).
   Click **Propose with Claude** → ~5-10s later see the proposal with per-field
   cards. Edit the JSON if you want. Click **Save & activate**. Then fire a
@@ -373,10 +398,11 @@ point on the resume — build it on top of a working engine, not before one.
 
 ## Phase 7 — Second destination: Stripe (test mode) ✅ COMPLETE
 
-**Goal:** Prove the connector abstraction by adding a second destination *without
-touching the engine core*. Short phase, high signal.
+**Goal:** Prove the connector abstraction by adding a second destination _without
+touching the engine core_. Short phase, high signal.
 
 ### Deliverables
+
 - [x] `packages/connectors/src/stripe` — `StripeDestinationConnector` against
       Stripe test mode (PaymentIntent creation, form-encoded body,
       `Idempotency-Key` header). Maps 429 → retryable, 5xx → retryable,
@@ -393,49 +419,72 @@ touching the engine core*. Short phase, high signal.
       interface absorbed Stripe cleanly.
 
 ### Manual steps (you)
+
 - [x] **Stripe account** at dashboard.stripe.com, Test mode toggled on.
 - [x] **Test secret key** (`sk_test_…`) in `.env` as `STRIPE_TEST_KEY`. Worker
       conditionally adds Stripe to the destinations array only when this is set.
-- [ ] *(Optional)* Open the Stripe test-mode dashboard → Payments to verify the
+- [ ] _(Optional)_ Open the Stripe test-mode dashboard → Payments to verify the
       PaymentIntents created by the demo runs (search by metadata `source_order_id`).
       Good screenshot fodder for the README.
 
 ### Definition of done
+
 - Stripe adapter passes the destination conformance suite. ✅ (9 tests)
 - One Shopify webhook fans out to both Mock ERP and Stripe test mode. ✅
   - Verified: event `7efb54c6-…` produced two SyncRun rows (`mock-erp
-    SUCCEEDED, stripe SUCCEEDED`); `IngestedEvent.status = SUCCEEDED`; MockErpOrder
+SUCCEEDED, stripe SUCCEEDED`); `IngestedEvent.status = SUCCEEDED`; MockErpOrder
     row written with the engine's idempotency key; a Stripe PaymentIntent created
     in test mode with `metadata[source_order_id]=…`.
 
 ### Demo
+
 - `pnpm dev:send-test-webhook --new` → both mock-erp and stripe SyncRuns appear
   in `/events/[id]` on the dashboard. Stripe dashboard (test mode) shows the
   matching PaymentIntent.
 
 ---
 
-## Phase 8 — AWS deploy (one-shot demo, then tear down)
+## Phase 8 — AWS deploy (one-shot demo, then tear down) 🚧 IN PROGRESS — code-only artifacts shipped, deploy paused
 
 **Goal:** Run the same images on AWS to make the "production path" claim real, then
 tear down to control cost. Per `PROJECT_DIRECTION.md` §5: AWS is for the demo, local
 docker-compose is the daily driver.
 
+> **Resume point (next session):** All pre-flight setup and decisions are done. The
+> code-only deliverables (SQS adapter, queue-driver switch, `Dockerfile.prod`,
+> `infra/README.md`) are merged. Pick back up at **§Manual steps → During the deploy**
+> below — the next CLI command is `aws ecr create-repository`. The user has saved an
+> RDS master password; Claude reads remaining secrets from local `.env` at deploy time.
+
 ### Deliverables
-- [ ] `packages/queue/sqs` — SQS implementation of `Queue<T>`. Passes the same
-      conformance suite as BullMQ.
-- [ ] Build + push images to ECR.
-- [ ] Manually (or via documented commands) deploy api + worker on ECS Fargate, point
-      at RDS Postgres, swap queue env to SQS, expose api via ALB, logs to CloudWatch.
-- [ ] `infra/README.md` with the exact step-by-step (no IaC required at this stage).
-- [ ] Screenshots of CloudWatch logs, ECS console, and a live webhook in production
-      for the README.
-- [ ] **Teardown script / checklist** to stop billing.
+
+- [x] `packages/queue/src/sqs.ts` — `SqsQueue<T>` adapter. ~280 LOC; same explicit-
+      ack bridge as BullMQ; passes the Phase 1 conformance suite when AWS is
+      reachable (skips on dev machines without credentials).
+- [x] `packages/queue/src/factory.ts` — `makeQueue(env)` picks `BullMQQueue` or
+      `SqsQueue` based on `env.QUEUE_DRIVER`. `apps/api` and `apps/worker` both
+      use it; queue swap is one env var, not a code change.
+- [x] `Dockerfile.prod` — production image with `NODE_ENV=production`, non-watch
+      tsx, SIGTERM-clean for Fargate. Parameterized by `APP_NAME` build arg.
+- [x] `infra/README.md` — full ~400-line AWS deploy runbook: architecture
+      diagram, ECR/SQS/RDS/CloudWatch/IAM/ECS/ALB step-by-step CLI, JSON
+      templates for IAM trust + SQS policy + ECS task definitions, smoke-test
+      commands, screenshot checklist, full teardown with 24h cost verification.
+- [ ] Build + push images to ECR. (Code ready; gated on `aws` access during
+      the next session.)
+- [ ] Provision RDS Postgres + SQS main/DLQ + CloudWatch log groups + IAM roles
+      + ECS cluster + task definitions + services + ALB. (Runbook ready.)
+- [ ] Update Shopify webhook URL to the ALB DNS; fire a live order; capture
+      logs flowing through CloudWatch end-to-end.
+- [ ] Screenshots of CloudWatch logs, ECS console, RDS rows, SQS metrics,
+      Stripe test-mode PaymentIntent for the README.
+- [ ] **Teardown** via the runbook checklist; verify Cost Explorer 24h later.
 
 ### Manual steps (you)
+
 This phase has the most user-only steps in the whole project. **Plan ~half a day** and
 do it in one sitting so resources don't sit idle billing. Per `PROJECT_DIRECTION.md`
-§5 this is *intentionally* a one-shot demo + screenshots, then teardown — the MVP
+§5 this is _intentionally_ a one-shot demo + screenshots, then teardown — the MVP
 runs locally via `docker compose`. Phase 8 produces three durable artifacts: the
 `packages/queue/sqs` adapter (code), `infra/README.md` (runbook), and the README
 screenshots.
@@ -445,53 +494,29 @@ screenshots.
 Everything below gates Claude from running CLI commands against AWS. Roughly
 30–60 minutes of clicking around the console + terminal setup, one-time.
 
-- [ ] **AWS account.** Sign up at <https://aws.amazon.com> (credit card required;
-      no charges if you stay in free tier). For a portfolio demo, prefer a **fresh
-      account** rather than mixing demo resources into one you use for work — the
-      teardown is unambiguous and you can close the account afterward.
-- [ ] **MFA on the root user.** AWS Console → top-right name dropdown → Security
-      credentials → Multi-factor authentication → Assign MFA device. Use an
-      authenticator app (Authy / 1Password / iOS Passwords). Non-negotiable — an
-      unauthenticated root key is a real liability.
-- [ ] **Dedicated IAM user with programmatic access.**
-      Console → IAM → Users → Create user. For a same-day-teardown demo,
-      `AdministratorAccess` is pragmatic and avoids permission-debugging hell
-      (you'll delete the user as part of teardown). If you want least-privilege:
-      ECR + ECS + RDS + SQS + ELB + CloudWatch Logs + IAM (for task roles).
-      Create access key (CLI access). **Download the CSV** — secret key is shown
-      once and never again.
-- [ ] **AWS CLI v2 installed locally.** `brew install awscli`, then verify with
-      `aws --version` (should print `aws-cli/2.x.x`).
-- [ ] **`aws configure`** in your terminal. Paste:
-      - AWS Access Key ID (from the CSV)
-      - AWS Secret Access Key (from the CSV)
-      - Default region: `us-east-1` (or your choice)
-      - Default output format: `json`
-      Claude can't run this (interactive prompt); you do it once in your shell
-      and Claude's `Bash` calls inherit the credentials.
-- [ ] **Verify**: `aws sts get-caller-identity` — should print your account ID
-      and the IAM user's ARN. If you see "Unable to locate credentials" or an
-      error, fix before proceeding.
-- [ ] **$5 monthly AWS Budget alert with email.** Console → Billing → Budgets →
-      Create budget → Cost budget → period: Monthly → amount: $5 → email alert
-      at 80% and 100%. **Most important defensive step** against forgotten
-      resources. If you ignore everything else on this list, do this.
+- [x] **AWS account.** Done.
+- [x] **MFA on the root user.** Done.
+- [x] **Dedicated IAM user with programmatic access.** Done. (Access key CSV
+      saved locally; `AdministratorAccess` for the demo, will be deleted at
+      teardown.)
+- [x] **AWS CLI v2 installed locally.** Done.
+- [x] **`aws configure`** in your terminal. Done.
+- [x] **Verify**: `aws sts get-caller-identity` — confirmed working.
+- [x] **$5 monthly AWS Budget alert with email.** Done.
 
 #### Decisions to make upfront
 
-- [ ] **Region**: `us-east-1` is the cheapest, biggest, default — fine unless
-      you want lower latency for your specific location.
-- [ ] **Where the secrets live**: `SHOPIFY_WEBHOOK_SECRET`, `ANTHROPIC_API_KEY`,
-      `STRIPE_TEST_KEY` need to reach the ECS tasks. Three options, easiest
-      first:
-      1. Plain task-definition env vars (easiest, fine because everything's
-         test-mode credentials).
-      2. Systems Manager Parameter Store (free, slight extra wiring).
-      3. AWS Secrets Manager (most "production-shaped", $0.40/secret/month).
-- [ ] **What stays local vs goes to AWS**: per ROADMAP, only `apps/api` and
-      `apps/worker` deploy. `apps/mock-erp` stays local (it's a stub — in real
-      production you'd hit a real ERP), `apps/dashboard` stays local pointing
-      at the AWS API URL.
+- [x] **Region**: `us-east-1`.
+- [x] **Where the secrets live**: **plain task-definition env vars** (option 1).
+      `infra/task-def-*.json` is gitignored so the filled-in files with live
+      secrets never enter the repo. Templates stay documented in
+      `infra/README.md` appendix.
+- [x] **What stays local vs goes to AWS**: only `apps/api` and `apps/worker`
+      deploy. `apps/mock-erp` stays local (the worker's mock-erp destination
+      will be dropped from the destinations array for the cloud build), and
+      `apps/dashboard` stays local pointing at the AWS API URL.
+- [x] **RDS master password**: user has saved one locally. Claude will read
+      from `.env` (or be told it) at the RDS provisioning step.
 
 #### During the deploy (Claude drives, you approve)
 
@@ -502,14 +527,9 @@ Everything below gates Claude from running CLI commands against AWS. Roughly
 
 #### Demo + screenshots
 
-- [ ] **Take screenshots** for the README:
-      - ECS service running (1+ task in RUNNING state)
-      - CloudWatch logs of a real webhook flowing through
-      - RDS row inserted (Postgres Query Editor in the RDS console, or psql via
-        a bastion)
-      - SQS queue metrics (ApproximateNumberOfMessagesReceived spiking when the
-        webhook fires)
-      - Stripe test-mode dashboard showing the PaymentIntent the Fargate worker created
+- [ ] **Take screenshots** for the README: - ECS service running (1+ task in RUNNING state) - CloudWatch logs of a real webhook flowing through - RDS row inserted (Postgres Query Editor in the RDS console, or psql via
+      a bastion) - SQS queue metrics (ApproximateNumberOfMessagesReceived spiking when the
+      webhook fires) - Stripe test-mode dashboard showing the PaymentIntent the Fargate worker created
 
 #### Teardown (when the demo is captured)
 
@@ -525,6 +545,7 @@ Everything below gates Claude from running CLI commands against AWS. Roughly
 - [ ] (Optional) Close the AWS account if you created a fresh one just for this.
 
 ### Definition of done
+
 - One Shopify webhook delivered to the AWS-hosted endpoint flows end-to-end and lands
   in RDS — screenshotted.
 - Resources torn down; final AWS bill estimated.
@@ -549,6 +570,7 @@ seniority signal but **not** required for the portfolio centerpiece.
   diagram, for systems without webhooks.
 
 ### Manual steps (you — vary by pick)
+
 - **Observability:** spin up Prometheus + Grafana locally (or use Grafana Cloud's free
   tier) and confirm `/metrics` is being scraped.
 - **Multi-tenancy:** decide the tenant identity model (subdomain? header? auth claim?)
@@ -596,7 +618,7 @@ A few choices worth defending in an interview:
    half-wired pipeline produces tests that pass for the wrong reasons.
 
 4. **Reliability (Phase 4) before the dashboard (Phase 5).** The dashboard's main job
-   is to *expose* the reliability story (DLQ list, replay button, attempt history).
+   is to _expose_ the reliability story (DLQ list, replay button, attempt history).
    Building the UI first means rebuilding it once the data model is real.
 
 5. **AI Mapping Studio (Phase 6) last among the core phases.** It is the differentiator
